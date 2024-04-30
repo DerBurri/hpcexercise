@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import numpy as np
 
 def plot_learning_rates(log_file):
   """
@@ -12,9 +13,10 @@ def plot_learning_rates(log_file):
     for line in f:
       if "Learning Rate" in line:
         learning_rate = float(line.split(":")[-1].strip())
-        data[learning_rate] = []
-      elif "Accuracy" in line:
-        accuracy = float(line.split(":")[-1].strip())
+        if learning_rate not in data.keys():
+          data[learning_rate] = []
+      if "Average loss" in line:
+        accuracy = float(line.split(",")[0].split(":")[2].strip())
         data[learning_rate].append(accuracy)
 
   # Check if data is valid
@@ -23,14 +25,14 @@ def plot_learning_rates(log_file):
 
   # Plot for each learning rate
   for learning_rate, accuracies in data.items():
-    plt.plot(range(len(accuracies)), accuracies, label=f"Learning Rate: {learning_rate}")
+    plt.plot(range(1,len(accuracies)+1), np.array(accuracies), label=f"Learning Rate: {learning_rate}")
   plt.xlabel("Epoch")
-  plt.ylabel("Test Accuracy")
-  plt.title("Test Accuracy over Epochs for Different Learning Rates")
+  plt.ylabel("Training Loss")
+  plt.title("Training Loss over Epochs")
   plt.legend()
   plt.grid(True)
-  plt.show()
+  plt.savefig("plot.pdf")
 
 # Example usage
-log_file = "metrics-adaptive-learningrate.log"
+log_file = "metrics-default.log"
 plot_learning_rates(log_file)
