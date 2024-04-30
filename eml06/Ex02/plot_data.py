@@ -14,7 +14,7 @@ def plot_learning_rates(log_file):
         learning_rate = float(line.split(":")[-1].strip())
         data[learning_rate] = []
       elif "Accuracy" in line:
-        accuracy = float(line.split("%")[-2].split("(")[-1].strip())
+        accuracy = float(line.split(":")[-1].strip())
         data[learning_rate].append(accuracy)
 
   # Check if data is valid
@@ -32,5 +32,5 @@ def plot_learning_rates(log_file):
   plt.show()
 
 # Example usage
-log_file = "eml06/Ex02/metrics-adaptive-learningrate.log"
+log_file = "metrics-adaptive-learningrate.log"
 plot_learning_rates(log_file)
