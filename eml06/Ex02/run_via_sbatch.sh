@@ -11,9 +11,9 @@ eval "$(command conda 'shell.bash' 'hook' 2> /dev/null)"
 conda activate eml
 
 echo "Running exercise02"
-python exercise2.py --lr 0.1
-python exercise2.py --lr 0.01
-python exercise2.py --lr 0.001
-python exercise2.py --lr 0.5
-python exercise2.py --lr 0.05
+python exercise2.py --lr 0.1     --epochs 30 
+python exercise2.py --lr 0.01 --epochs 30 
+python exercise2.py --lr 0.001 --epochs 30 
+python exercise2.py --lr 0.5 --epochs 30 
+python exercise2.py --lr 0.05 --epochs 30 
 

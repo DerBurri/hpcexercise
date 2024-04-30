@@ -98,9 +98,9 @@ def train(args, model, train_loader, epoch):
         model.backward(gradient)
         model.update()
         if batch_idx % args.log_interval == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tTraining Rate: {:.3f}'.format(
                 epoch, batch_idx * len(data), len(train_loader.dataset),
-                100. * batch_idx / len(train_loader), loss.item() / data.shape[0]))
+                100. * batch_idx / len(train_loader), loss.item() / data.shape[0], args.lr))
 
 
 def test(args, model, test_loader, epoch):
@@ -117,9 +117,9 @@ def test(args, model, test_loader, epoch):
 
     test_loss /= len(test_loader.dataset)
 
-    print('\nTest Epoch: {} Average loss: {:.4f}, Accuracy: {}/{} ({:.2f}%)\n'.format(
+    print('\nTest Epoch: {} Average loss: {:.4f}, Accuracy: {}/{} ({:.2f}%), Learning Rate: {:.3f}\n'.format(
         epoch, test_loss, correct, len(test_loader.dataset),
-        100. * correct / len(test_loader.dataset)))
+        100. * correct / len(test_loader.dataset), args.lr))
 
 
 def main():
