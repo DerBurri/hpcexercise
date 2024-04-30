@@ -3,5 +3,6 @@ obj/
 slurm*
 error*
 build/
+*/data/*
 
 /.venv
