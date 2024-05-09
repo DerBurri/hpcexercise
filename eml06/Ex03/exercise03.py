@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import torchvision
 from torchvision import datasets, transforms
 from torch.optim.lr_scheduler import StepLR
 import matplotlib.pyplot as plt
@@ -11,13 +12,13 @@ import matplotlib.pyplot as plt
 # Plots
 def plot_accuracy_over_epochs(mlp_accuracies, cnn_accuracies):
     epochs = range(1, len(mlp_accuracies) + 1)
-    plt.plot(epochs, mlp_accuracies, label='MLP')
-    plt.plot(epochs, cnn_accuracies, label='CNN')
+    plt.plot(epochs,[entry[1] for entry in mlp_accuracies], label='MLP')
+    plt.plot(epochs, [entry[1] for entry in cnn_accuracies], label='CNN')
     plt.xlabel('Epochs')
     plt.ylabel('Test Accuracy')
     plt.title('Test Accuracy Over Epochs')
     plt.legend()
-    plt.show()
+    plt.savefig("plot1.pdf")
 
 def plot_accuracy_over_time(mlp_accuracies, cnn_accuracies):
     time_steps = range(1, len(mlp_accuracies) + 1)
@@ -27,29 +28,34 @@ def plot_accuracy_over_time(mlp_accuracies, cnn_accuracies):
     plt.ylabel('Test Accuracy')
     plt.title('Test Accuracy Over Training Time')
     plt.legend()
-    plt.show()
+    plt.savefig("plot2.pdf")
 
 # TODO: Implement the MLP class, to be equivalent to the MLP from the last exercise!
 class MLP(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.linear0 = nn.Linear(..., ...)
-        ...
+    def __init__(self,input_shape):
+        super(MLP,self).__init__()
+        self.linear0 = nn.Linear(input_shape,512)       #28*28, 512, batch_size, lr)
+        self.linear1 = nn.Linear(512, 128)
+        self.linear2 = nn.Linear(128, 10)
 
     def forward(self, x):
       x = torch.flatten(x, 1)
       x = self.linear0(x)
-      x = self.relu0(x)
-      ...
+      x = torch.sigmoid(x)
+      x = self.linear1(x)
+      x = torch.sigmoid(x)
+      x = self.linear2(x)
+      x = torch.sigmoid(x)
+      x = torch.flatten(x,1)
       x = F.log_softmax(x, dim=1)
       return x
 
 
 # TODO: Already done, hopefully right.
 class CNN(nn.Module):
-    def __init__(self):
+    def __init__(self,in_channels):
         super(CNN, self).__init__()
-        self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=1)
+        self.conv1 = nn.Conv2d(in_channels, 32, kernel_size=3, stride=1)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=2)
         self.conv3 = nn.Conv2d(64, 128, kernel_size=3, stride=1)
         self.flatten = nn.Flatten()
@@ -94,10 +100,11 @@ def test(model, device, test_loader):
             correct += pred.eq(target.view_as(pred)).sum().item()
 
     test_loss /= len(test_loader.dataset)
-
+    accuracy = 100. * correct /len(test_loader.dataset)
     print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
         test_loss, correct, len(test_loader.dataset),
-        100. * correct / len(test_loader.dataset)))
+        accuracy))
+    return test_loss, accuracy
 
 
 def main():
@@ -117,6 +124,8 @@ def main():
                         help='random seed (default: 1)')
     parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                         help='how many batches to wait before logging training status')
+    parser.add_argument('--dataset',type=str, default='cifar10', metavar='N',
+                        help='which dataset do you want to use? (CIFAR10 or MNIST)')
     args = parser.parse_args()
     use_cuda = not args.no_cuda and torch.cuda.is_available()
 
@@ -127,39 +136,76 @@ def main():
     train_kwargs = {'batch_size': args.batch_size}
     test_kwargs = {'batch_size': args.test_batch_size}
     if use_cuda:
+        print("WILL USE CUDA!!")
         cuda_kwargs = {'num_workers': 1,
                        'pin_memory': True,
                        'shuffle': True}
         train_kwargs.update(cuda_kwargs)
         test_kwargs.update(cuda_kwargs)
+        
 
     transform = transforms.Compose([
         transforms.ToTensor(),
     ])
+    if args.dataset == 'cifar10':
+        dataset_train = datasets.CIFAR10('../data', train=True, download=True, transform=transform)
+        dataset_test = datasets.CIFAR10('../data', train=False, transform=transform)
 
-    dataset_train = datasets.CIFAR10('../data', train=True, download=True, transform=transform)
-    dataset_test = datasets.CIFAR10('../data', train=False, transform=transform)
+        train_loader = torch.utils.data.DataLoader(dataset_train, **train_kwargs)
+        test_loader = torch.utils.data.DataLoader(dataset_test, **test_kwargs)
 
-    train_loader = torch.utils.data.DataLoader(dataset_train, **train_kwargs)
-    test_loader = torch.utils.data.DataLoader(dataset_test, **test_kwargs)
+        model_mlp = MLP(32*32*3).to(device)
+        optimizer_mlp = optim.SGD(model_mlp.parameters(), lr=args.lr)
 
-    model_mlp = MLP().to(device)
-    optimizer_mlp = optim.SGD(model_mlp.parameters(), lr=args.lr)
+        model_cnn = CNN(3).to(device)
+        optimizer_cnn = optim.SGD(model_cnn.parameters(), lr=args.lr / 10)  # reducing the learning rate for CNN
 
-    model_cnn = CNN().to(device)
-    optimizer_cnn = optim.SGD(model_cnn.parameters(), lr=args.lr / 10)  # reducing the learning rate for CNN
+        mlp_accuracies = []
+        cnn_accuracies = []
 
-    mlp_accuracies = []
-    cnn_accuracies = []
+        for epoch in range(1, args.epochs + 1):
+            train(args, model_mlp, device, train_loader, optimizer_mlp, epoch)
+            mlp_acc = test(model_mlp, device, test_loader)
+            mlp_accuracies.append(mlp_acc)
 
-    for epoch in range(1, args.epochs + 1):
-        train(args, model_mlp, device, train_loader, optimizer_mlp, epoch)
-        mlp_acc = test(model_mlp, device, test_loader)
-        mlp_accuracies.append(mlp_acc)
+            train(args, model_cnn, device, train_loader, optimizer_cnn, epoch)
+            cnn_acc = test(model_cnn, device, test_loader)
+            cnn_accuracies.append(cnn_acc)
+    else:
+        print("Using MNIST")
+        transform=transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.1307,), (0.3081,))
+        ])
+        dataset_train = datasets.MNIST('../data', train=True, download=True,
+                       transform=transform)
 
-        train(args, model_cnn, device, train_loader, optimizer_cnn, epoch)
-        cnn_acc = test(model_cnn, device, test_loader)
-        cnn_accuracies.append(cnn_acc)
+
+        dataset_test = datasets.MNIST('../data', train=False,
+                       transform=transform)
+        train_loader = torch.utils.data.DataLoader(dataset_train, shuffle=True, batch_size = args.batch_size)
+        test_loader = torch.utils.data.DataLoader(dataset_test, shuffle=False, batch_size = args.batch_size)
+
+        model_mlp = MLP(input_shape=28*28).to(device)
+        optimizer_mlp = optim.SGD(model_mlp.parameters(), lr=args.lr)
+
+        #model_cnn = CNN(in_channels=1).to(device)
+        #optimizer_cnn = optim.SGD(model_cnn.parameters(), lr=args.lr / 10)  # reducing the learning rate for CNN
+
+
+        mlp_accuracies = []
+        cnn_accuracies = []
+
+
+        for epoch in range(1, args.epochs + 1):
+            print("Next Epoch")
+            train(args, model_mlp, device, train_loader, optimizer_mlp, epoch)
+            mlp_acc = test(model_mlp, device, test_loader)
+            mlp_accuracies.append(mlp_acc)
+
+            #train(args, model_cnn, device, train_loader, optimizer_cnn, epoch)
+            #cnn_acc = test(model_cnn, device, test_loader)
+            #cnn_accuracies.append(cnn_acc)
 
     plot_accuracy_over_epochs(mlp_accuracies, cnn_accuracies)
     plot_accuracy_over_time(mlp_accuracies, cnn_accuracies)
