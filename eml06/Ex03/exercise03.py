@@ -21,16 +21,21 @@ def plot_accuracy_over_epochs(mlp_accuracies, cnn_accuracies):
     plt.savefig("plot1.pdf")
 
 def plot_accuracy_over_time(mlp_accuracies, cnn_accuracies):
-    time_steps = range(1, len(mlp_accuracies) + 1)
-    plt.plot(time_steps, mlp_accuracies, label='MLP')
-    plt.plot(time_steps, cnn_accuracies, label='CNN')
+    mlp_epochs = [entry[0] for entry in mlp_accuracies]
+    mlp_accuracy = [entry[1] for entry in mlp_accuracies]
+
+    cnn_epochs = [entry[0] for entry in cnn_accuracies]
+    cnn_accuracy = [entry[1] for entry in cnn_accuracies]
+
+    plt.plot(mlp_epochs, mlp_accuracy, label='MLP')
+    plt.plot(cnn_epochs, cnn_accuracy, label='CNN')
     plt.xlabel('Training Time (Epochs)')
     plt.ylabel('Test Accuracy')
     plt.title('Test Accuracy Over Training Time')
     plt.legend()
     plt.savefig("plot2.pdf")
 
-# TODO: Implement the MLP class, to be equivalent to the MLP from the last exercise!
+
 class MLP(nn.Module):
     def __init__(self,input_shape):
         super(MLP,self).__init__()
@@ -51,7 +56,6 @@ class MLP(nn.Module):
       return x
 
 
-# TODO: Already done, hopefully right.
 class CNN(nn.Module):
     def __init__(self,in_channels):
         super(CNN, self).__init__()
