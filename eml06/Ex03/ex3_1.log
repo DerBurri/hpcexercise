@@ -1,0 +1,185 @@
+Running on CPU
+Using MNIST
+
+ Accuracy: 89%
+
+
+ Accuracy: 92%
+
+
+ Accuracy: 93%
+
+
+ Accuracy: 94%
+
+
+ Accuracy: 95%
+
+
+ Accuracy: 95%
+
+
+ Accuracy: 96%
+
+
+ Accuracy: 96%
+
+
+ Accuracy: 96%
+
+
+ Accuracy: 97%
+
+
+ Accuracy: 97%
+
+
+ Accuracy: 97%
+
+
+ Accuracy: 97%
+
+
+ Accuracy: 97%
+
+
+ Accuracy: 97%
+
+
+ Accuracy: 97%
+
+
+ Accuracy: 98%
+
+
+ Accuracy: 98%
+
+
+ Accuracy: 98%
+
+
+ Accuracy: 98%
+
+
+ Accuracy: 98%
+
+
+ Accuracy: 98%
+
+
+ Accuracy: 98%
+
+
+ Accuracy: 98%
+
+
+ Accuracy: 98%
+
+
+ Accuracy: 98%
+
+
+ Accuracy: 98%
+
+
+ Accuracy: 98%
+
+
+ Accuracy: 98%
+
+
+ Accuracy: 98%
+
+Running on GPU
+WILL USE CUDA!!
+Using MNIST
+
+ Accuracy: 89%
+
+
+ Accuracy: 92%
+
+
+ Accuracy: 93%
+
+
+ Accuracy: 94%
+
+
+ Accuracy: 95%
+
+
+ Accuracy: 95%
+
+
+ Accuracy: 96%
+
+
+ Accuracy: 96%
+
+
+ Accuracy: 96%
+
+
+ Accuracy: 97%
+
+
+ Accuracy: 97%
+
+
+ Accuracy: 97%
+
+
+ Accuracy: 97%
+
+
+ Accuracy: 97%
+
+
+ Accuracy: 97%
+
+
+ Accuracy: 97%
+
+
+ Accuracy: 98%
+
+
+ Accuracy: 98%
+
+
+ Accuracy: 98%
+
+
+ Accuracy: 98%
+
+
+ Accuracy: 98%
+
+
+ Accuracy: 98%
+
+
+ Accuracy: 98%
+
+
+ Accuracy: 98%
+
+
+ Accuracy: 98%
+
+
+ Accuracy: 98%
+
+
+ Accuracy: 98%
+
+
+ Accuracy: 98%
+
+
+ Accuracy: 98%
+
+
+ Accuracy: 98%
+

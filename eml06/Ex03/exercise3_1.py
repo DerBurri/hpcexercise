@@ -1,5 +1,6 @@
 from __future__ import print_function
 import argparse
+import time
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -8,22 +9,13 @@ import torchvision
 from torchvision import datasets, transforms
 from torch.optim.lr_scheduler import StepLR
 import matplotlib.pyplot as plt
+import pandas as pd
 
-# Plots
-def plot_accuracy_over_epochs(mlp_accuracies, cnn_accuracies):
-    epochs = range(1, len(mlp_accuracies) + 1)
-    plt.plot(epochs,[entry[1] for entry in mlp_accuracies], label='MLP')
-    plt.plot(epochs, [entry[1] for entry in cnn_accuracies], label='CNN')
-    plt.xlabel('Epochs')
-    plt.ylabel('Test Accuracy')
-    plt.title('Test Accuracy Over Epochs')
-    plt.legend()
-    plt.savefig("plot1.pdf")
 
 class MLP(nn.Module):
     def __init__(self,input_shape):
         super(MLP,self).__init__()
-        self.linear0 = nn.Linear(input_shape,512)       #28*28, 512, batch_size, lr)
+        self.linear0 = nn.Linear(input_shape, 512)       #28*28, 512, batch_size, lr)
         self.linear1 = nn.Linear(512, 128)
         self.linear2 = nn.Linear(128, 10)
 
@@ -34,31 +26,8 @@ class MLP(nn.Module):
       x = self.linear1(x)
       x = torch.sigmoid(x)
       x = self.linear2(x)
-      x = torch.sigmoid(x)
-      x = torch.flatten(x,1)
       x = F.log_softmax(x, dim=1)
       return x
-
-
-class CNN(nn.Module):
-    def __init__(self,in_channels):
-        super(CNN, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels, 32, kernel_size=3, stride=1)
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=2)
-        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, stride=1)
-        self.flatten = nn.Flatten()
-        self.fc1 = nn.Linear(18432, 128)
-        self.fc2 = nn.Linear(128, 10)
-
-    def forward(self, x):
-        x = F.relu(self.conv1(x))
-        x = F.relu(self.conv2(x))
-        x = F.relu(self.conv3(x))
-        x = self.flatten(x)
-        x = F.relu(self.fc1(x))
-        x = F.log_softmax(self.fc2(x), dim=1)
-        return x
-
 
 
 def train(args, model, device, train_loader, optimizer, epoch):
@@ -70,10 +39,6 @@ def train(args, model, device, train_loader, optimizer, epoch):
         loss = F.nll_loss(output, target)
         loss.backward()
         optimizer.step()
-        if batch_idx % args.log_interval == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                epoch, batch_idx * len(data), len(train_loader.dataset),
-                100. * batch_idx / len(train_loader), loss.item()))
 
 def test(model, device, test_loader):
     model.eval()
@@ -89,10 +54,8 @@ def test(model, device, test_loader):
 
     test_loss /= len(test_loader.dataset)
     accuracy = 100. * correct /len(test_loader.dataset)
-    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-        test_loss, correct, len(test_loader.dataset),
-        accuracy))
-    return test_loss, accuracy
+    print('\n Accuracy: {:.0f}%\n'.format(accuracy))
+    return accuracy
 
 
 def main():
@@ -131,6 +94,8 @@ def main():
         train_kwargs.update(cuda_kwargs)
         test_kwargs.update(cuda_kwargs)
         
+    mlp_accuracies = []
+    elapsed_times = []
 
     transform = transforms.Compose([
         transforms.ToTensor(),
@@ -145,20 +110,23 @@ def main():
         model_mlp = MLP(32*32*3).to(device)
         optimizer_mlp = optim.SGD(model_mlp.parameters(), lr=args.lr)
 
-        model_cnn = CNN(3).to(device)
-        optimizer_cnn = optim.SGD(model_cnn.parameters(), lr=args.lr / 10)  # reducing the learning rate for CNN
-
-        mlp_accuracies = []
-        cnn_accuracies = []
+        start_time = time.time()
 
         for epoch in range(1, args.epochs + 1):
             train(args, model_mlp, device, train_loader, optimizer_mlp, epoch)
+            end_time = time.time()
+            elapsed_time = end_time - start_time
+            elapsed_times.append(elapsed_time)
             mlp_acc = test(model_mlp, device, test_loader)
             mlp_accuracies.append(mlp_acc)
 
-            train(args, model_cnn, device, train_loader, optimizer_cnn, epoch)
-            cnn_acc = test(model_cnn, device, test_loader)
-            cnn_accuracies.append(cnn_acc)
+        data = {"time": elapsed_times, "accuracy": mlp_accuracies}
+        df = pd.DataFrame(data)
+        if use_cuda:
+            df.to_csv("gpu_data.csv")
+        else:
+            df.to_csv("cpu_data.csv")
+
     else:
         print("Using MNIST")
         transform=transforms.Compose([
@@ -177,25 +145,24 @@ def main():
         model_mlp = MLP(input_shape=28*28).to(device)
         optimizer_mlp = optim.SGD(model_mlp.parameters(), lr=args.lr)
 
-        #model_cnn = CNN(in_channels=1).to(device)
-        #optimizer_cnn = optim.SGD(model_cnn.parameters(), lr=args.lr / 10)  # reducing the learning rate for CNN
-
-
-        mlp_accuracies = []
-        cnn_accuracies = []
-
+        start_time = time.time()
 
         for epoch in range(1, args.epochs + 1):
-            print("Next Epoch")
             train(args, model_mlp, device, train_loader, optimizer_mlp, epoch)
+            end_time = time.time()
+            elapsed_time = end_time - start_time
+            elapsed_times.append(elapsed_time)
             mlp_acc = test(model_mlp, device, test_loader)
             mlp_accuracies.append(mlp_acc)
 
-            #train(args, model_cnn, device, train_loader, optimizer_cnn, epoch)
-            #cnn_acc = test(model_cnn, device, test_loader)
-            #cnn_accuracies.append(cnn_acc)
+        data = {"time": elapsed_times, "accuracy": mlp_accuracies}
+        df = pd.DataFrame(data)
+        if use_cuda:
+            df.to_csv("gpu_data.csv")
+        else:
+            df.to_csv("cpu_data.csv")
 
-    plot_accuracy_over_epochs(mlp_accuracies, cnn_accuracies)
+
 
 if __name__ == '__main__':
     main()

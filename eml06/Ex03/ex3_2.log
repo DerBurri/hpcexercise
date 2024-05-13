@@ -1,0 +1,9 @@
+Running exercise03_template.py
+WILL USE CUDA!!
+Files already downloaded and verified
+Traceback (most recent call last):
+  File "/csghome/eml06/hpcexercise/eml06/Ex03/exercise3_2.py", line 205, in <module>
+    main()
+  File "/csghome/eml06/hpcexercise/eml06/Ex03/exercise3_2.py", line 170, in main
+    data = {"time_cnn": elapsed_times_cnn, "time_mlp": elapsed_times_mlp, "accuracy_cnn": cnn_accuracies[:,1], "accuracy_mlp": mlp_accuracies[:,1]}
+TypeError: list indices must be integers or slices, not tuple

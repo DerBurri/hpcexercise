@@ -1,5 +1,7 @@
 from __future__ import print_function
 import argparse
+import time
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -15,8 +17,9 @@ def plot_accuracy_over_epochs(mlp_accuracies, cnn_accuracies):
     plt.plot(epochs,[entry[1] for entry in mlp_accuracies], label='MLP')
     plt.plot(epochs, [entry[1] for entry in cnn_accuracies], label='CNN')
     plt.xlabel('Epochs')
-    plt.ylabel('Test Accuracy')
+    plt.ylabel('Test Accuracy[%]')
     plt.title('Test Accuracy Over Epochs')
+    plt.grid()
     plt.legend()
     plt.savefig("plot1.pdf")
 
@@ -70,10 +73,6 @@ def train(args, model, device, train_loader, optimizer, epoch):
         loss = F.nll_loss(output, target)
         loss.backward()
         optimizer.step()
-        if batch_idx % args.log_interval == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                epoch, batch_idx * len(data), len(train_loader.dataset),
-                100. * batch_idx / len(train_loader), loss.item()))
 
 def test(model, device, test_loader):
     model.eval()
@@ -89,11 +88,7 @@ def test(model, device, test_loader):
 
     test_loss /= len(test_loader.dataset)
     accuracy = 100. * correct /len(test_loader.dataset)
-    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-        test_loss, correct, len(test_loader.dataset),
-        accuracy))
     return test_loss, accuracy
-
 
 def main():
     # Parse command line arguments
@@ -130,7 +125,11 @@ def main():
                        'shuffle': True}
         train_kwargs.update(cuda_kwargs)
         test_kwargs.update(cuda_kwargs)
-        
+
+    mlp_accuracies = []
+    cnn_accuracies = []
+    elapsed_times_cnn = []
+    elapsed_times_mlp = []     
 
     transform = transforms.Compose([
         transforms.ToTensor(),
@@ -146,19 +145,31 @@ def main():
         optimizer_mlp = optim.SGD(model_mlp.parameters(), lr=args.lr)
 
         model_cnn = CNN(3).to(device)
-        optimizer_cnn = optim.SGD(model_cnn.parameters(), lr=args.lr / 10)  # reducing the learning rate for CNN
+        optimizer_cnn = optim.SGD(model_cnn.parameters(), lr=args.lr / 10)
 
-        mlp_accuracies = []
-        cnn_accuracies = []
+        start_time = time.time()        
 
         for epoch in range(1, args.epochs + 1):
             train(args, model_mlp, device, train_loader, optimizer_mlp, epoch)
+            end_time = time.time()
+            elapsed_time = end_time - start_time
+            elapsed_times_mlp.append(elapsed_time)
             mlp_acc = test(model_mlp, device, test_loader)
             mlp_accuracies.append(mlp_acc)
 
+        start_time = time.time()
+
+        for epoch in range(1, args.epochs + 1):
             train(args, model_cnn, device, train_loader, optimizer_cnn, epoch)
+            end_time = time.time()
+            elapsed_time = end_time - start_time
+            elapsed_times_cnn.append(elapsed_time)
             cnn_acc = test(model_cnn, device, test_loader)
             cnn_accuracies.append(cnn_acc)
+
+        data = {"time_cnn": elapsed_times_cnn, "time_mlp": elapsed_times_mlp, "accuracy_cnn": cnn_accuracies[:,1], "accuracy_mlp": mlp_accuracies[:,1]}
+        df = pd.DataFrame(data)
+        df.to_csv("CNN_MLP_Data.csv")
     else:
         print("Using MNIST")
         transform=transforms.Compose([
@@ -176,13 +187,6 @@ def main():
 
         model_mlp = MLP(input_shape=28*28).to(device)
         optimizer_mlp = optim.SGD(model_mlp.parameters(), lr=args.lr)
-
-        #model_cnn = CNN(in_channels=1).to(device)
-        #optimizer_cnn = optim.SGD(model_cnn.parameters(), lr=args.lr / 10)  # reducing the learning rate for CNN
-
-
-        mlp_accuracies = []
-        cnn_accuracies = []
 
 
         for epoch in range(1, args.epochs + 1):
