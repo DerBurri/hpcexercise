@@ -4,18 +4,14 @@
 #SBATCH --cpus-per-task 1
 #SBATCH --time 30:00
 #SBATCH -p exercise-eml
-#SBATCH -o ex3_1.log
+#SBATCH -o ex3_3.log
 
 # load appropriate conda paths, because we are not in a login shell
 eval "$(command conda 'shell.bash' 'hook' 2> /dev/null)"
 conda activate eml
 
-echo "Running on CPU"
-python exercise3_1.py --no-cuda $true --dataset MNIST
-
-echo "Running on GPU"
-python exercise3_1.py --dataset MNIST
-
+echo "Running Exercise"
+python exercise3_3.py
 
 echo "Running the Plots"
-python plot3_1.py
+python plot3_3.py

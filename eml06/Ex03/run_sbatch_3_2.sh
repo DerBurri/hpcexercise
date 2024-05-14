@@ -10,5 +10,8 @@
 eval "$(command conda 'shell.bash' 'hook' 2> /dev/null)"
 conda activate eml
 
-echo "Running exercise03_template.py"
+echo "Running Exercise"
 python exercise3_2.py
+
+echo "Running the Plots"
+python plot3_2.py
