@@ -41,11 +41,9 @@ class VGG11(nn.Module):
         x = self.classifier(x)
         return F.log_softmax(x, dim=1)
 
-# Training function
-def train(args, model, device, train_loader, optimizer, epoch):
+def train(args, model, device, train_loader, optimizer, epoch, results):
     model.train()
-    train_losses = []
-    train_accs = []
+    train_loss = 0
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
@@ -53,55 +51,42 @@ def train(args, model, device, train_loader, optimizer, epoch):
         loss = F.nll_loss(output, target)
         loss.backward()
         optimizer.step()
-        if batch_idx % args.log_interval == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                epoch, batch_idx * len(data), len(train_loader.dataset),
-                100. * batch_idx / len(train_loader), loss.item()))
-        train_losses.append(loss.item())
-        pred = output.argmax(dim=1, keepdim=True)
-        correct = pred.eq(target.view_as(pred)).sum().item()
-        accuracy = correct / len(data)
-        train_accs.append(accuracy)
-    return train_losses, train_accs
+        train_loss += loss.item()
+    avg_train_loss = train_loss / len(train_loader.dataset)
+    results['train_loss'].append(avg_train_loss)
 
-# Testing function
-def test(model, device, test_loader, epoch):
+def test(model, device, test_loader, epoch, results):
     model.eval()
     test_loss = 0
     correct = 0
-    test_losses = []
-    test_accs = []
     with torch.no_grad():
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
             output = model(data)
-            loss = F.nll_loss(output, target, reduction='sum').item()
-            test_loss += loss
-            pred = output.argmax(dim=1, keepdim=True)
+            test_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
+            pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
             correct += pred.eq(target.view_as(pred)).sum().item()
-            test_losses.append(loss)
-            accuracy = correct / len(data)
-            test_accs.append(accuracy)
+
     test_loss /= len(test_loader.dataset)
     accuracy = 100. * correct / len(test_loader.dataset)
-    print('Test Epoch: {}, Test set: Average loss: {:.4f}, Accuracy: {}/{} ({:.2f}%)\n'.format(
-        epoch, test_loss, correct, len(test_loader.dataset), accuracy))
-    return test_losses, test_accs
+    results['test_loss'].append(test_loss)
+    results['test_accuracy'].append(accuracy)
 
-# Main function
 def main():
     # Training settings
-    parser = argparse.ArgumentParser(description='PyTorch CIFAR-10 VGG11 Example')
+    parser = argparse.ArgumentParser(description='PyTorch SVHN Example')
     parser.add_argument('--batch-size', type=int, default=128, metavar='N',
                         help='input batch size for training (default: 128)')
-    parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
-                        help='input batch size for testing (default: 1000)')
+    parser.add_argument('--test-batch-size', type=int, default=1024, metavar='N',
+                        help='input batch size for testing (default: 1024)')
     parser.add_argument('--epochs', type=int, default=30, metavar='N',
                         help='number of epochs to train (default: 30)')
     parser.add_argument('--lr', type=float, default=0.0001, metavar='LR',
                         help='learning rate (default: 0.0001)')
-    parser.add_argument('--dropout_p', type=float, default=0.5, metavar='P',
-                        help='dropout probability (default: 0.5)')
+    parser.add_argument('--dropout_p', type=float, default=0.0,
+                        help='dropout_p (default: 0.0)')
+    parser.add_argument('--L2_reg', type=float, default=None,
+                        help='L2_reg (default: None)')
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
     parser.add_argument('--seed', type=int, default=1, metavar='S',
@@ -124,44 +109,38 @@ def main():
         train_kwargs.update(cuda_kwargs)
         test_kwargs.update(cuda_kwargs)
 
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-    ])
+    test_transforms = transforms.Compose([transforms.ToTensor()])
+    train_transforms = [transforms.ToTensor()]
+    train_transforms = transforms.Compose(train_transforms)
 
-    train_dataset = datasets.CIFAR10('../data', train=True, download=True,
-                                     transform=transform)
-    test_dataset = datasets.CIFAR10('../data', train=False, download=True,
-                                    transform=transform)
-    train_loader = torch.utils.data.DataLoader(train_dataset, **train_kwargs)
-    test_loader = torch.utils.data.DataLoader(test_dataset, **test_kwargs)
+    dataset_train = datasets.SVHN('../data', split='train', download=True,
+                       transform=train_transforms)
+    dataset_test = datasets.SVHN('../data', split='test', download=True,
+                       transform=test_transforms)
+    train_loader = torch.utils.data.DataLoader(dataset_train,**train_kwargs)
+    test_loader = torch.utils.data.DataLoader(dataset_test, **test_kwargs)
 
     model = VGG11(dropout_p=args.dropout_p).to(device)
+    
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
-    train_losses = []
-    train_accs = []
-    test_losses = []
-    test_accs = []
-
+    results = {'epoch': [], 'train_loss': [], 'test_loss': [], 'test_accuracy': []}
     print(f'Starting training at: {time.time():.4f}')
     for epoch in range(1, args.epochs + 1):
-        train_loss, train_acc = train(args, model, device, train_loader, optimizer, epoch)
-        test_loss, test_acc = test(model, device, test_loader, epoch)
-        train_losses.extend(train_loss)
-        train_accs.extend(train_acc)
-        test_losses.extend(test_loss)
-        test_accs.extend(test_acc)
+        train(args, model, device, train_loader, optimizer, epoch, results)
+        test(model, device, test_loader, epoch, results)
+        results['epoch'].append(epoch)
+        print(f"Epoch {epoch}: Train Loss {results['train_loss'][-1]}, Test Loss {results['test_loss'][-1]}, Test Accuracy {results['test_accuracy'][-1]}")
 
-    # Save data for plotting does not work for now!!!!!!!!!!!!
-    results = pd.DataFrame({
-        'train_loss': train_losses,
-        'train_acc': train_accs,
-        'test_loss': test_losses,
-        'test_acc': test_accs,
-    })
-    results.to_csv('training_results.csv', index=False)
-    print('Training results saved to training_results.csv')
+    results_df = pd.DataFrame(results)
+    results_df.to_csv('exercise4_1_1.csv', index=False)
+    print('Training results saved to exercise4_1_1.csv')
+
+    if (args.L2_reg is not None):
+        f_name = f'trained_VGG11_L2-{args.L2_reg}.pt'
+        torch.save(model.state_dict(), f_name)
+        print(f'Saved model to: {f_name}')
+
 
 if __name__ == '__main__':
     main()
