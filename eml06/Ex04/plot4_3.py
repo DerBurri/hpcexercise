@@ -1,7 +1,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 
-data = pd.read_csv('results.csv')
+data = pd.read_csv('results_augmentation.csv')
 plt.figure(figsize=(10, 5))
 
 plt.subplot(1, 2, 1)
@@ -19,4 +19,4 @@ plt.title('Test Accuracy over Epochs')
 plt.legend()
 
 plt.tight_layout()
-plt.savefig("Ex4_1.pdf")
+plt.savefig("Ex4_3.pdf")

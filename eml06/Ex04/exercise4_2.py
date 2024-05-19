@@ -8,7 +8,7 @@ import csv
 import argparse
 
 class VGG11(nn.Module):
-    def __init__(self, dropout_p=0.5):
+    def __init__(self):
         super(VGG11, self).__init__()
         self.features = nn.Sequential(
             nn.Conv2d(3, 64, kernel_size=3, padding=1), nn.ReLU(inplace=True),
@@ -26,9 +26,7 @@ class VGG11(nn.Module):
             nn.MaxPool2d(kernel_size=2, stride=2),
         )
         self.classifier = nn.Sequential(
-            nn.Dropout(dropout_p),
             nn.Linear(512 * 1 * 1, 4096), nn.ReLU(inplace=True),
-            nn.Dropout(dropout_p),
             nn.Linear(4096, 4096), nn.ReLU(inplace=True),
             nn.Linear(4096, 10),
         )
@@ -73,12 +71,12 @@ def test(model, device, test_loader, epoch, results):
     results.append([epoch, test_loss, accuracy])
 
 def main():
-    parser = argparse.ArgumentParser(description='PyTorch CIFAR10 VGG11 Example')
+    parser = argparse.ArgumentParser(description='PyTorch CIFAR10 VGG11 Example with L2 Regularization')
     parser.add_argument('--batch-size', type=int, default=128, metavar='N')
     parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N')
     parser.add_argument('--epochs', type=int, default=30, metavar='N')
     parser.add_argument('--lr', type=float, default=0.01, metavar='LR')
-    parser.add_argument('--dropout_p', type=float, default=0.5, metavar='D')
+    parser.add_argument('--weight-decay', type=float, default=1e-4, metavar='WD')
     parser.add_argument('--no-cuda', action='store_true', default=False)
     parser.add_argument('--seed', type=int, default=1, metavar='S')
     parser.add_argument('--log-interval', type=int, default=10, metavar='N')
@@ -101,15 +99,15 @@ def main():
                          ])),
         batch_size=args.test_batch_size, shuffle=False, **kwargs)
 
-    model = VGG11(dropout_p=args.dropout_p).to(device)
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    model = VGG11().to(device)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     
     results = []
     for epoch in range(1, args.epochs + 1):
         train(args, model, device, train_loader, optimizer, epoch)
         test(model, device, test_loader, epoch, results)
     
-    with open('results.csv', mode='w', newline='') as file:
+    with open('results_l2.csv', mode='w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(['Epoch', 'Test Loss', 'Test Accuracy'])
         writer.writerows(results)
