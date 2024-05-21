@@ -124,16 +124,18 @@ def main():
     
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
-    results = {'epoch': [], 'train_loss': [], 'test_loss': [], 'test_accuracy': []}
+    results = {'epoch': [], 'train_loss': [], 'test_loss': [], 'test_accuracy': [], 'dropout_probability' : []}
     print(f'Starting training at: {time.time():.4f}')
     for epoch in range(1, args.epochs + 1):
         train(args, model, device, train_loader, optimizer, epoch, results)
         test(model, device, test_loader, epoch, results)
         results['epoch'].append(epoch)
-        print(f"Epoch {epoch}: Train Loss {results['train_loss'][-1]}, Test Loss {results['test_loss'][-1]}, Test Accuracy {results['test_accuracy'][-1]}")
+        results['dropout_probability'].append(args.dropout_p)
+        print(f"Epoch {epoch}: Train Loss {results['train_loss'][-1]}, Test Loss {results['test_loss'][-1]}, Test Accuracy {results['test_accuracy'][-1]}, Dropout Probability {results['dropout_probability'][-1]}")
 
     results_df = pd.DataFrame(results)
-    results_df.to_csv('exercise4_1_1.csv', index=False)
+    filename = f'exercse4_1_1{args.dropout_p}.csv'
+    results_df.to_csv(filename + '.csv', index=False)
     print('Training results saved to exercise4_1_1.csv')
 
     if (args.L2_reg is not None):
