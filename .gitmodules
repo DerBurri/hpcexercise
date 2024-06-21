@@ -4,3 +4,7 @@
 [submodule "cudalibrarysamples"]
 	path = cudalibrarysamples
 	url = https://github.com/nvidia/cudalibrarysamples
+
+[submodule "eml06/project/tvm"]
+	path = eml06/project/tvm
+	url = https://github.com/apache/tvm
