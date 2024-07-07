@@ -1,0 +1,4 @@
+model,mac,number_parameters
+resnet,20.79,1081482
+vgg,22.00,28144010
+convnet,1.12,2453962
