@@ -4,5 +4,5 @@ slurm*
 error*
 build/
 */data/*
-
+*/.conda/*
 /.venv
