@@ -1,23 +1,19 @@
-import numpy as np
-import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Conv2D
-from tensorflow.keras.optimizers import Adam
+import torch
+from torch import nn
 
-# Define the SRCNN model
-def srcnn_model():
-    model = Sequential()
-    # First convolutional layer with 64 filters of size 9x9
-    model.add(Conv2D(64, (9, 9), activation='relu', padding='same', input_shape=(None, None, 1)))
-    # Second convolutional layer with 32 filters of size 5x5
-    model.add(Conv2D(32, (5, 5), activation='relu', padding='same'))
-    # Third convolutional layer with 1 filter of size 5x5
-    model.add(Conv2D(1, (5, 5), activation='linear', padding='same'))
-    
-    optimizer = Adam(learning_rate=0.0003)
-    model.compile(optimizer=optimizer, loss='mean_squared_error', metrics=['mean_squared_error'])
-    
-    return model
+class SRCNN(nn.Module):
+    def __init__(self, num_channels=1):
+        super(SRCNN, self).__init__()
+        self.conv1 = nn.Conv2d(num_channels, 64, kernel_size=9, padding=9 // 2)
+        self.conv2 = nn.Conv2d(64, 32, kernel_size=5, padding=5 // 2)
+        self.conv3 = nn.Conv2d(32, num_channels, kernel_size=5, padding=5 // 2)
+        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, x):
+        x = self.relu(self.conv1(x))
+        x = self.relu(self.conv2(x))
+        x = self.conv3(x)
+        return x
 
 # Function to load pre-trained SRCNN model
 def load_pretrained_srcnn(weights_path):
