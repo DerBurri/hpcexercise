@@ -8,3 +8,6 @@
 [submodule "eml06/project/tvm"]
 	path = eml06/project/tvm
 	url = https://github.com/apache/tvm
+[submodule "SRCNN-pytorch"]
+	path = SRCNN-pytorch
+	url = https://github.com/yjn870/SRCNN-pytorch
