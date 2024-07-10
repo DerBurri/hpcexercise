@@ -34,9 +34,9 @@ class SRCNN(nn.Module):
         return x
 
 model = SRCNN(num_channels=1)
-dummy_input = torch.randn(1, 1, 224, 224)
+dummy_input = torch.randn(1, 1, 1920, 1920)
 # load the weights from pth file and convert to cpu
-model.load_state_dict(torch.load('/home/mburr/tvm/hpcexercise-1/eml06/project/srcnn_x3.pth', map_location=torch.device('cpu')))
+#model.load_state_dict(torch.load('/home/mburr/tvm/hpcexercise-1/eml06/project/srcnn_x3.pth', map_location=torch.device('cpu')))
 
 
 
@@ -48,7 +48,7 @@ torch.onnx.export(model, dummy_input, "srcnn.onnx", input_names=["input"], outpu
 onnx_model = onnx.load("srcnn.onnx")
 
 # Convert the ONNX model to Relay IR
-shape_dict = {"input": (1, 1, 224, 224)}
+shape_dict = {"input": (1, 1, 1920, 1920)}
 mod, params = relay.frontend.from_onnx(onnx_model, shape_dict)
 
 
@@ -117,13 +117,13 @@ module = runtime.GraphModule(rlib["default"](dev))
 img_url= "https://github.com/dmlc/mxnet.js/blob/main/data/cat.png?raw=true"
 img_name = "cat.png"
 img_path = download_testdata(img_url, img_name, module='data')
-img = Image.open(img_path).resize((224, 224)).convert('YCbCr')
+img = Image.open(img_path).resize((1920, 1920)).convert('L')
 img.show()
 input_image = np.array(img).astype("float32")
 input_image = np.expand_dims(input_image, axis=(0,1))
 module.set_input("input", tvm.nd.array(input_image))
 
-plt.imshow(input_image.squeeze(), cmap='ycbcr')
+plt.imshow(input_image.squeeze(), cmap='gray')
 plt.savefig('input.png')
 # Run the model
 module.run()
@@ -133,7 +133,7 @@ out = module.get_output(0).numpy()
 print("Output shape:", out.shape)
 
 # save output image
-plt.imshow(out.squeeze(), cmap='ycbcr')
+plt.imshow(out.squeeze(), cmap='gray')
 plt.savefig('output.png')
 
 ftimer = module.module.time_evaluator("run", dev, number=1, repeat=10)
