@@ -14,14 +14,3 @@ class SRCNN(nn.Module):
         x = self.relu(self.conv2(x))
         x = self.conv3(x)
         return x
-
-# Function to load pre-trained SRCNN model
-def load_pretrained_srcnn(weights_path):
-    model = srcnn_model()
-    model.load_weights(weights_path)
-    return model
-
-# Example usage:
-# srcnn = srcnn_model()
-# srcnn.summary()
-# pretrained_srcnn = load_pretrained_srcnn('path_to_pretrained_weights.h5')
