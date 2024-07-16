@@ -14,6 +14,8 @@ from torch import nn
 import numpy as np
 from PIL import Image
 from model import SRCNN
+from utils import convert_rgb_to_ycbcr, convert_ycbcr_to_rgb, calc_psnr
+
 
 
 # import matplotlib for image
@@ -32,60 +34,41 @@ for n, p in torch.load('/home/mburr/tvm/hpcexercise-1/eml06/project/data/srcnn_x
 
 image_org = Image.open('/home/mburr/tvm/hpcexercise-1/eml06/project/image_downsample/images/baby_downsized_4x.jpg.bmp').convert('RGB')
 
-# resize the image to 1920 x1080
+# resize the image
 image = image_org.resize((853, 1280), resample=Image.BICUBIC)
-image_ycbcr = image.convert('YCbCr')
-#extract the Y channel
-image_y, image_cb, image_cr = image_ycbcr.split()
-y = np.array(image_y).astype(np.float32)
+
+# original image before bicubic upscaling
+image_org = np.array(image_org).astype(np.float32)
+ycbcr_org = convert_rgb_to_ycbcr(image_org)
+
+image = np.array(image).astype(np.float32)
+ycbcr = convert_rgb_to_ycbcr(image)
+
+y = ycbcr[..., 0]
 y /= 255.
-y = np.expand_dims(y, axis=0)  # Add batch dimension
-y = np.expand_dims(y, axis=0)  # Add channel dimension
+y = torch.from_numpy(y)
+y = y.unsqueeze(0).unsqueeze(0)
 
+y_org = ycbcr_org[..., 0]
+y_org /= 255.
+y_org = torch.from_numpy(y_org)
+y_org = y.unsqueeze(0).unsqueeze(0)
+
+#TVM Stuff
+#################################################################################
 # We grab the TorchScripted model via tracing
-dummy_input = torch.from_numpy(y)
-scripted_model = torch.jit.trace(model, torch.from_numpy(y)).eval()
+dummy_input = y
+scripted_model = torch.jit.trace(model, y).eval()
 scripted_model.save("srcnn.pt")
-# Preprocess the image and convert to tensor
-from torchvision import transforms
 
-
-#my_preprocess = transforms.Compose(
-#    [
-#        transforms.Resize(256),
-#        transforms.CenterCrop(224),
-#        transforms.ToTensor(),
-#        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-#    ]
-#)
-#
-#image = my_preprocess(image)
 # Convert the TorchScript model to Relay IR
 input_shape = dummy_input.shape
 input_name = "input0"
 shape_list = [(input_name, input_shape)]
 mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
 
-
-# We grab the TorchScripted model via tracing
-
-# create relay ir from torch
-
-
-#torch.onnx.export(model, dummy_input, "srcnn.onnx", input_names=["input"], output_names=["output"])
-
-# Load the ONNX model
-#onnx_model = onnx.load("srcnn.onnx")
-
-# Convert the ONNX model to Relay IR
-#shape_dict = {"input": (1, 1, 224, 224)}
-#mod, params = relay.frontend.from_onnx(onnx_model, shape_dict)
-
-
 from tvm.relay.op.contrib.arm_compute_lib import partition_for_arm_compute_lib
 module = partition_for_arm_compute_lib(mod, params)
-
-
 
 target = tvm.target.Target("llvm -mtriple=aarch64-linux-gnu")
 with tvm.transform.PassContext(opt_level=3):
@@ -106,13 +89,13 @@ tuning_option = {
     ),
 }
 
-# # Parameter Tune the model
-# for task in tasks:
-#      tuner = XGBTuner(task)
-#      tuner.tune(n_trial=tuning_option['n_trial'],
-#                 early_stopping=tuning_option['early_stopping'],
-#                 measure_option=tuning_option['measure_option'],
-#                 callbacks=[autotvm.callback.log_to_file(tuning_option['log_filename'])])
+# Parameter Tune the model
+for task in tasks:
+     tuner = XGBTuner(task)
+     tuner.tune(n_trial=tuning_option['n_trial'],
+                early_stopping=tuning_option['early_stopping'],
+                measure_option=tuning_option['measure_option'],
+                callbacks=[autotvm.callback.log_to_file(tuning_option['log_filename'])])
     
 with autotvm.apply_history_best(tuning_option['log_filename']):
     with tvm.transform.PassContext(opt_level=3):
@@ -144,22 +127,11 @@ rlib = remote.load_module("srcnn.tar")
 dev = remote.cpu(0)
 module = runtime.GraphModule(rlib["default"](dev))
 
-# Set input data
-#input_data = np.random.rand(1, 1, 224, 224).astype("float32")
-
-
-# # Load and preprocess the image
-# img_url= "https://github.com/dmlc/mxnet.js/blob/main/data/cat.png?raw=true"
-# img_name = "cat.png"
-# img_path = download_testdata(img_url, img_name, module='data')
-# img = Image.open(img_path).resize((1920, 1080)).convert('L')
-# img.show()
-# input_image = np.array(img).astype("float32")
-# input_image = np.expand_dims(input_image, axis=(0,1))
 module.set_input("input0", y)
 
 plt.imshow(y.squeeze())
 plt.savefig('input.png')
+
 # Run the model
 module.run()
 
@@ -172,11 +144,14 @@ out = module.get_output(0)
 #print("PSNR: {:.2f}".format(psnr))
 print("Output shape:", out.shape)
 
-# save output image
+########################################################################################
+# Save output image
 preds = out.numpy().squeeze(0).squeeze(0)
-#merge the output with the cb and cr channels
-output = np.array([preds, image_cb, image_cr]).transpose([1, 2, 0])
-output = Image.fromarray(np.uint8(output), mode='YCbCr').convert('RGB')
+preds = preds * 255.
+
+output = np.array([preds, ycbcr[..., 1], ycbcr[..., 2]]).transpose([1, 2, 0])
+output = np.clip(convert_ycbcr_to_rgb(output), 0.0, 255.0).astype(np.uint8)
+output = Image.fromarray(output)
 
 output.save("output.png")
 
