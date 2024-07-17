@@ -66,10 +66,10 @@ def quantize_network( relay_network, params, quantization_config=None, print_nw=
             nbit_activation=32,
             dtype_input='int8',
             dtype_weight='int8',
-            dtype_activation='float32',
+            dtype_activation='int32',
             calibrate_mode='global_scale',
             global_scale=8.0,
-            weight_scale="power2",
+            weight_scale='power2',
             skip_dense_layer=False,
             skip_conv_layers=[0],
             do_simulation=False,
@@ -87,42 +87,20 @@ def quantize_network( relay_network, params, quantization_config=None, print_nw=
     print('quantized')
     return qfunc
 
-def prune_weights_between_limits_permanently(model, lower_limit, upper_limit):
+
+def prune_weights(model, lower_limit, upper_limit):
+
     for name, module in model.named_modules():
-        if isinstance(module, nn.Conv2d):
-            print("pruned layer: ", name)
-            # Create a mask for weights to keep
-            mask = (module.weight.data >= lower_limit) & (module.weight.data <= upper_limit)
-            # Apply mask to set weights outside the limits to zero instead of removing them
+        if isinstance(module, nn.Conv2d) and name != 'conv1':
+            # Create a mask for weights to set to zero
+            mask = (module.weight.data < lower_limit) | (module.weight.data > upper_limit)
+
+            # Directly set weights outside the limits to zero
             module.weight.data[~mask] = 0
-            # Note: This approach maintains the original shape and structure of the weights
-            # remove the weights completely when set to 0 to reduce computatins
-
-
-def prune_filters_based_on_average_weight(model, lower_limit, upper_limit):
-    for name, module in model.named_modules():
-        if isinstance(module, nn.Conv2d):
-            # Calculate the average weight for each filter
-            filter_avgs = module.weight.data.mean(dim=[1, 2, 3])
-            # Create a mask for filters to keep
-            filter_mask = (filter_avgs >= lower_limit) & (filter_avgs <= upper_limit)
-            # Invert mask to select filters to prune
-            filters_to_prune = np.where(filter_mask.numpy() == False)[0]
-            # Prune filters
-            module = prune_conv_layer(module, filters_to_prune)
-
-def prune_conv_layer(conv, filters_to_prune):
-    """Prunes the specified filters from a convolutional layer."""
-    # Create a mask to keep filters not in filters_to_prune
-    mask = torch.ones(conv.out_channels, dtype=torch.bool)
-    mask[filters_to_prune] = False
-    # Use the mask to select filters
-    conv.weight.data = conv.weight.data[mask, :, :, :]
-    if conv.bias is not None:
-        conv.bias.data = conv.bias.data[mask]
-    # Adjust the number of output channels
-    conv.out_channels = len(conv.weight.data)
-    return conv
+            #print(module.weight.data)
+            #print(mask)
+            #print("pruning done")
+    return model
 
 
 
@@ -152,18 +130,14 @@ for n, p in torch.load('/home/mburr/tvm/hpcexercise-1/eml06/project/data/srcnn_x
 # prune weights
 
 
-lower_limit = -0.0001 # for measurement 1
-upper_limit = 0.0001 # for measurement 1
-#lower_limit = -0.05 # for measurement 2
-#upper_limit = 0.05 # for measurement 2
-#lower_limit = -0.075 # for measurement 3
-#upper_limit = 0.075 # for measurement 3
-#lower_limit = -0.1 # for measurement 4
-#upper_limit = 0.1 # for measurement 4
-#lower_limit = -0.15 # for measurement 5
-#upper_limit = 0.15 # for measurement 5
+#lower_limit = -0.0025 # for measurement 1
+#upper_limit = 0.0025 # for measurement 1
+#lower_limit = -0.015 # for measurement 2
+#upper_limit = 0.015 # for measurement 2
+lower_limit = -0.02
+upper_limit= 0.02
 
-
+model = prune_weights(model, lower_limit, upper_limit)
 #prune_weights_between_limits_permanently(model, lower_limit, upper_limit)
 #prune_filters_based_on_average_weight(model, lower_limit, upper_limit)
 
@@ -216,22 +190,15 @@ shape_list = [(input_name, input_shape)]
 qmod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
 # count MACs
 try:
-    func = relay.testing.run_opt_pass(qmod["main"], relay.transform.InferType())
+    func = relay.testing.run_opt_pass(qmod["default"], relay.transform.InferType())
     compute_count = relay.analysis.get_total_mac_number(func)
     print('MACs = {:.2E} MACs'.format(compute_count))
 except:
     print('MACs could not be calculated!')
 
-with tvm.transform.PassContext(opt_level=3):
-        #quantized_mod = relay.transform.ConvertLayout({'nn.conv2d': ['NHWC', 'OHWI']})(qmod)
-        quantized_mod = relay.quantize.quantize(qmod, params,
-                                            quantize_target=relay.transform.target.Float16QuantizeTarget())
-
-
 # Quantization
 # quantize model
 #qmod = quantize_network(qmod, params)
-#qmod =
 
 # plot the weihgs after quantization from the relay IR moodel
 # Create a single figure and axis for plotting
@@ -270,7 +237,7 @@ remote = tracker_conn.request(device_key)
 
 # Tuning
 target = tvm.target.Target("llvm -device=arm_cpu -model=bcm2712 -mtriple=aarch64-linux-gnu -mattr=+neon -mcpu=cortex-a76")
-tasks = autotvm.task.extract_from_program(quantized_mod["main"], target=target, params=params)
+tasks = autotvm.task.extract_from_program(qmod["main"], target=target, params=params)
 
 
 # Define tuning options
@@ -295,10 +262,6 @@ for task in tasks:
 
 with autotvm.apply_history_best(tuning_option['log_filename']):
     with tvm.transform.PassContext(opt_level=3):
-        quantized_mod = relay.transform.ConvertLayout({'nn.conv2d': ['NHWC', 'OHWI']})(qmod)
-        quantized_mod = relay.quantize.quantize(quantized_mod, params,
-                                            quantize_target=relay.transform.target.Float16QuantizeTarget())
-
         lib = relay.build(qmod, target=target, params=params)
 
 # Save the library
