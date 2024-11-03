@@ -78,7 +78,7 @@ static const char *sSDKsample = "CUDA Bandwidth Test";
 char *flush_buf;
 
 // enums, project
-enum testMode { QUICK_MODE, RANGE_MODE, SHMOO_MODE };
+enum testMode { QUICK_MODE, RANGE_MODE, SHMOO_MODE, KERNEL_MODE, KERNEL2_MODE, KERNEL3_MODE };
 enum memcpyKind { DEVICE_TO_HOST, HOST_TO_DEVICE, DEVICE_TO_DEVICE };
 enum printMode { USER_READABLE, CSV };
 enum memoryMode { PINNED, PAGEABLE };
@@ -102,19 +102,19 @@ void testBandwidth(unsigned int start, unsigned int end, unsigned int increment,
                    memoryMode memMode, int startDevice, int endDevice, bool wc);
 void testBandwidthQuick(unsigned int size, memcpyKind kind, printMode printmode,
                         memoryMode memMode, int startDevice, int endDevice,
-                        bool wc);
+                        bool wc, testMode mode);
 void testBandwidthRange(unsigned int start, unsigned int end,
                         unsigned int increment, memcpyKind kind,
                         printMode printmode, memoryMode memMode,
-                        int startDevice, int endDevice, bool wc);
+                        int startDevice, int endDevice, bool wc, testMode mode);
 void testBandwidthShmoo(memcpyKind kind, printMode printmode,
                         memoryMode memMode, int startDevice, int endDevice,
-                        bool wc);
+                        bool wc, testMode mode);
 float testDeviceToHostTransfer(unsigned int memSize, memoryMode memMode,
-                               bool wc);
+                               bool wc, testMode mode);
 float testHostToDeviceTransfer(unsigned int memSize, memoryMode memMode,
-                               bool wc);
-float testDeviceToDeviceTransfer(unsigned int memSize);
+                               bool wc, testMode mode);
+float testDeviceToDeviceTransfer(unsigned int memSize, testMode mode);
 void printResultsReadable(unsigned int *memSizes, double *bandwidths,
                           unsigned int count, memcpyKind kind,
                           memoryMode memMode, int iNumDevs, bool wc);
@@ -122,6 +122,58 @@ void printResultsCSV(unsigned int *memSizes, double *bandwidths,
                      unsigned int count, memcpyKind kind, memoryMode memMode,
                      int iNumDevs, bool wc);
 void printHelp(void);
+////////////////////////////////////////////////////////////////////////////////
+// Kernels
+////////////////////////////////////////////////////////////////////////////////
+
+__global__ void copyKernel(const unsigned char* in, unsigned char* out, size_t num_bytes) {
+    int i = blockDim.x * blockIdx.x + threadIdx.x;
+
+  if (i < num_bytes) {
+    out[i] = in[i];
+  }
+}
+
+__global__ void copyKernel2(unsigned char* in, unsigned char* out, size_t num_bytes, size_t bytes_per_inst) {
+    int i = (blockDim.x * blockIdx.x + threadIdx.x) * bytes_per_inst;
+    int end = num_bytes / bytes_per_inst * bytes_per_inst;
+
+    if (bytes_per_inst == 1) {
+      char* in_vec = reinterpret_cast<char*>(in);
+      char* out_vec = reinterpret_cast<char*>(out);
+      if (i < num_bytes) {
+        out_vec[i / 1] = in_vec[i / 1];
+      }
+    }
+    if (bytes_per_inst == 2) {
+      char2* in_vec = reinterpret_cast<char2*>(in);
+      char2* out_vec = reinterpret_cast<char2*>(out);
+      if (i < num_bytes) {
+        out_vec[i / 2] = in_vec[i / 2];
+      }
+    }
+    if (bytes_per_inst == 4) {
+      char4* in_vec = reinterpret_cast<char4*>(in);
+      char4* out_vec = reinterpret_cast<char4*>(out);
+      if (i < num_bytes) {
+        out_vec[i / 4] = in_vec[i / 4];
+      }
+    }
+
+  if (i < num_bytes) {
+    out[i] = in[i];
+  }
+}
+
+template<typename T, class Functor>
+__global__ void transformKernel(const T* in, T* out, size_t num_elements, Functor f) {
+const int i = blockDim.x * blockIdx.x + threadIdx.x;
+  
+  if (i < num_elements) {
+    out[i] = f(in[i]);
+  }
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // Program main
@@ -394,16 +446,21 @@ void testBandwidth(unsigned int start, unsigned int end, unsigned int increment,
   switch (mode) {
     case QUICK_MODE:
       testBandwidthQuick(DEFAULT_SIZE, kind, printmode, memMode, startDevice,
-                         endDevice, wc);
+                         endDevice, wc, QUICK_MODE);
       break;
 
     case RANGE_MODE:
       testBandwidthRange(start, end, increment, kind, printmode, memMode,
-                         startDevice, endDevice, wc);
+                         startDevice, endDevice, wc, RANGE_MODE);
       break;
 
     case SHMOO_MODE:
-      testBandwidthShmoo(kind, printmode, memMode, startDevice, endDevice, wc);
+      testBandwidthShmoo(kind, printmode, memMode, startDevice, endDevice, wc, SHMOO_MODE);
+      break;
+    
+    case KERNEL_MODE:
+      testBandwidthQuick(DEFAULT_SIZE, kind, printmode, memMode, startDevice,
+                         endDevice, wc, KERNEL_MODE);
       break;
 
     default:
@@ -416,9 +473,9 @@ void testBandwidth(unsigned int start, unsigned int end, unsigned int increment,
 //////////////////////////////////////////////////////////////////////
 void testBandwidthQuick(unsigned int size, memcpyKind kind, printMode printmode,
                         memoryMode memMode, int startDevice, int endDevice,
-                        bool wc) {
+                        bool wc, testMode mode) {
   testBandwidthRange(size, size, DEFAULT_INCREMENT, kind, printmode, memMode,
-                     startDevice, endDevice, wc);
+                     startDevice, endDevice, wc, mode);
 }
 
 ///////////////////////////////////////////////////////////////////////
@@ -426,8 +483,8 @@ void testBandwidthQuick(unsigned int size, memcpyKind kind, printMode printmode,
 //////////////////////////////////////////////////////////////////////
 void testBandwidthRange(unsigned int start, unsigned int end,
                         unsigned int increment, memcpyKind kind,
-                        printMode printmode, memoryMode memMode,
-                        int startDevice, int endDevice, bool wc) {
+                        printMode printmode, memoryMode memMode, 
+                        int startDevice, int endDevice, bool wc, testMode mode) {
   // count the number of copies we're going to run
   unsigned int count = 1 + ((end - start) / increment);
 
@@ -451,15 +508,15 @@ void testBandwidthRange(unsigned int start, unsigned int end,
 
       switch (kind) {
         case DEVICE_TO_HOST:
-          bandwidths[i] += testDeviceToHostTransfer(memSizes[i], memMode, wc);
+          bandwidths[i] += testDeviceToHostTransfer(memSizes[i], memMode, wc, mode);
           break;
 
         case HOST_TO_DEVICE:
-          bandwidths[i] += testHostToDeviceTransfer(memSizes[i], memMode, wc);
+          bandwidths[i] += testHostToDeviceTransfer(memSizes[i], memMode, wc, mode);
           break;
 
         case DEVICE_TO_DEVICE:
-          bandwidths[i] += testDeviceToDeviceTransfer(memSizes[i]);
+          bandwidths[i] += testDeviceToDeviceTransfer(memSizes[i], mode);
           break;
       }
     }
@@ -484,7 +541,7 @@ void testBandwidthRange(unsigned int start, unsigned int end,
 //////////////////////////////////////////////////////////////////////////////
 void testBandwidthShmoo(memcpyKind kind, printMode printmode,
                         memoryMode memMode, int startDevice, int endDevice,
-                        bool wc) {
+                        bool wc, testMode mode) {
   // count the number of copies to make
   unsigned int count =
       1 + (SHMOO_LIMIT_20KB / SHMOO_INCREMENT_1KB) +
@@ -534,17 +591,17 @@ void testBandwidthShmoo(memcpyKind kind, printMode printmode,
       switch (kind) {
         case DEVICE_TO_HOST:
           bandwidths[iteration] +=
-              testDeviceToHostTransfer(memSizes[iteration], memMode, wc);
+              testDeviceToHostTransfer(memSizes[iteration], memMode, wc, mode);
           break;
 
         case HOST_TO_DEVICE:
           bandwidths[iteration] +=
-              testHostToDeviceTransfer(memSizes[iteration], memMode, wc);
+              testHostToDeviceTransfer(memSizes[iteration], memMode, wc, mode);
           break;
 
         case DEVICE_TO_DEVICE:
           bandwidths[iteration] +=
-              testDeviceToDeviceTransfer(memSizes[iteration]);
+              testDeviceToDeviceTransfer(memSizes[iteration], mode);
           break;
       }
 
@@ -574,7 +631,7 @@ void testBandwidthShmoo(memcpyKind kind, printMode printmode,
 //  test the bandwidth of a device to host memcopy of a specific size
 ///////////////////////////////////////////////////////////////////////////////
 float testDeviceToHostTransfer(unsigned int memSize, memoryMode memMode,
-                               bool wc) {
+                               bool wc, testMode mode) {
   StopWatchInterface *timer = NULL;
   float elapsedTimeInMs = 0.0f;
   float bandwidthInGBs = 0.0f;
@@ -677,7 +734,7 @@ float testDeviceToHostTransfer(unsigned int memSize, memoryMode memMode,
 //! test the bandwidth of a host to device memcopy of a specific size
 ///////////////////////////////////////////////////////////////////////////////
 float testHostToDeviceTransfer(unsigned int memSize, memoryMode memMode,
-                               bool wc) {
+                               bool wc, testMode mode) {
   StopWatchInterface *timer = NULL;
   float elapsedTimeInMs = 0.0f;
   float bandwidthInGBs = 0.0f;
@@ -735,8 +792,13 @@ float testHostToDeviceTransfer(unsigned int memSize, memoryMode memMode,
     if (bDontUseGPUTiming) sdkStartTimer(&timer);
     checkCudaErrors(cudaEventRecord(start, 0));
     for (unsigned int i = 0; i < MEMCOPY_ITERATIONS; i++) {
-      checkCudaErrors(cudaMemcpyAsync(d_idata, h_odata, memSize,
+      if (KERNEL_MODE == mode){
+        copyKernel<<<1,1,1024>>>(h_odata, d_idata, memSize);
+      }
+      else {
+        checkCudaErrors(cudaMemcpyAsync(d_idata, h_odata, memSize,
                                       cudaMemcpyHostToDevice, 0));
+      }
     }
     checkCudaErrors(cudaEventRecord(stop, 0));
     checkCudaErrors(cudaDeviceSynchronize());
@@ -784,7 +846,7 @@ float testHostToDeviceTransfer(unsigned int memSize, memoryMode memMode,
 ///////////////////////////////////////////////////////////////////////////////
 //! test the bandwidth of a device to device memcopy of a specific size
 ///////////////////////////////////////////////////////////////////////////////
-float testDeviceToDeviceTransfer(unsigned int memSize) {
+float testDeviceToDeviceTransfer(unsigned int memSize, testMode mode) {
   StopWatchInterface *timer = NULL;
   float elapsedTimeInMs = 0.0f;
   float bandwidthInGBs = 0.0f;
@@ -814,8 +876,9 @@ float testDeviceToDeviceTransfer(unsigned int memSize) {
   checkCudaErrors(cudaMalloc((void **)&d_odata, memSize));
 
   // initialize memory
-  checkCudaErrors(
-      cudaMemcpy(d_idata, h_idata, memSize, cudaMemcpyHostToDevice));
+  //checkCudaErrors(
+      //cudaMemcpy(d_idata, h_idata, memSize, cudaMemcpyHostToDevice));
+  copyKernel<<<1,1,1024>>>(h_idata, d_idata, memSize);
 
   // run the memcopy
   sdkStartTimer(&timer);
@@ -922,6 +985,7 @@ void printResultsCSV(unsigned int *memSizes, double *bandwidths,
         sConfig.c_str(), bandwidths[i], dSeconds, memSizes[i], iNumDevs);
   }
 }
+
 
 ///////////////////////////////////////////////////////////////////////////
 // Print help screen
