@@ -164,7 +164,7 @@ HOST_COMPILER ?= g++
 NVCC          := $(CUDA_PATH)/bin/nvcc -ccbin $(HOST_COMPILER)
 
 # internal flags
-NVCCFLAGS   := -m${TARGET_SIZE}
+NVCCFLAGS   := -m${TARGET_SIZE} -G --extended-lambda
 CCFLAGS     :=
 LDFLAGS     :=
 
@@ -317,7 +317,7 @@ GENCODE_FLAGS += -gencode arch=compute_$(HIGHEST_SM),code=compute_$(HIGHEST_SM)
 endif
 endif
 
-ALL_CCFLAGS += --threads 0 --std=c++11
+ALL_CCFLAGS += --threads 0 --std=c++20
 
 ifeq ($(SAMPLE_ENABLED),0)
 EXEC ?= @echo "[@]"
