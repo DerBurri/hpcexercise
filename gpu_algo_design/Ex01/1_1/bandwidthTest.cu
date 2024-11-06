@@ -51,7 +51,7 @@
 static const char *sSDKsample = "CUDA Bandwidth Test";
 
 // defines, project
-#define MEMCOPY_ITERATIONS 100
+#define MEMCOPY_ITERATIONS 1
 #define DEFAULT_SIZE (32 * (1e6))      // 32 M
 #define DEFAULT_INCREMENT (4 * (1e6))  // 4 M
 #define CACHE_CLEAR_SIZE (16 * (1e6))  // 16 M
@@ -152,43 +152,106 @@ __global__ void copyKernel(const unsigned char* in, unsigned char* out, size_t n
   }
 }
 
-__global__ void copyKernel2(unsigned char* in, unsigned char* out, size_t num_bytes, size_t bytes_per_inst) {
-    int i = (blockDim.x * blockIdx.x + threadIdx.x) * bytes_per_inst;
-    int end = num_bytes / bytes_per_inst * bytes_per_inst;
+// __global__ void copyKernel2(unsigned char* in, unsigned char* out, size_t num_bytes, size_t bytes_per_inst) {
+//     int i = (blockDim.x * blockIdx.x + threadIdx.x);
+//     //int end = num_bytes / bytes_per_inst * bytes_per_inst;
+//     if (i < num_bytes  - bytes_per_inst + 1)
+//     {
+//       printf("copying\n");
+//     if (bytes_per_inst == 1) {
+//       char* in_vec = reinterpret_cast<char*>(in);
+//       char* out_vec = reinterpret_cast<char*>(out);
+//       if (i < num_bytes) {
+//         out_vec[i / 1] = in_vec[i / 1];
+//       }
+//     }
+//     if (bytes_per_inst == 2) {
+//       char2* in_vec = reinterpret_cast<char2*>(in);
+//       char2* out_vec = reinterpret_cast<char2*>(out);
+//       if (i < num_bytes) {
+//         out_vec[i / 2] = in_vec[i / 2];
+//       }
+//     }
+//     if (bytes_per_inst == 4) {
+//       char4* in_vec = reinterpret_cast<char4*>(in);
+//       char4* out_vec = reinterpret_cast<char4*>(out);
+//       if (i < num_bytes) {
+//         out_vec[i / 4] = in_vec[i / 4];
+//       }
+//     }
+//     }
+// }
 
-    if (bytes_per_inst == 1) {
-      char* in_vec = reinterpret_cast<char*>(in);
-      char* out_vec = reinterpret_cast<char*>(out);
-      if (i < num_bytes) {
-        out_vec[i / 1] = in_vec[i / 1];
-      }
-    }
-    if (bytes_per_inst == 2) {
-      char2* in_vec = reinterpret_cast<char2*>(in);
-      char2* out_vec = reinterpret_cast<char2*>(out);
-      if (i < num_bytes) {
-        out_vec[i / 2] = in_vec[i / 2];
-      }
-    }
-    if (bytes_per_inst == 4) {
-      char4* in_vec = reinterpret_cast<char4*>(in);
-      char4* out_vec = reinterpret_cast<char4*>(out);
-      if (i < num_bytes) {
-        out_vec[i / 4] = in_vec[i / 4];
-      }
-    }
+__global__ void copyKernel2(const unsigned char *__restrict__ in,
+                            unsigned char *__restrict__ out,
+                            size_t num_bytes, int bytes_per_inst)
+{
+  unsigned int total_threads = gridDim.x * blockDim.x;
 
-  if (i < num_bytes) {
-    out[i] = in[i];
+  // num_bytes = number of all elements to copy
+  unsigned int inst_per_thread = num_bytes / bytes_per_inst / total_threads;
+  unsigned int idx = blockDim.x * blockIdx.x + threadIdx.x;
+  printf("thread_id %d, inst_per_thread %d\n",threadIdx.x, inst_per_thread);
+  
+  for (unsigned int element_idx = idx+ bytes_per_inst * inst_per_thread;
+       element_idx < idx + inst_per_thread * bytes_per_inst + bytes_per_inst* inst_per_thread;
+       element_idx += bytes_per_inst)
+  {
+    printf("thread_id %d, element_idx: %d\n",threadIdx.x, element_idx);
+    switch (bytes_per_inst)
+    {
+    case 4:
+      if (element_idx * 4 < num_bytes)
+      {
+        reinterpret_cast<int *>(out)[idx] =
+            reinterpret_cast<const int *>(in)[idx];
+      }
+      break;
+    case 8:
+      if (element_idx * 8 < num_bytes)
+      {
+        reinterpret_cast<int2 *>(out)[idx] =
+            reinterpret_cast<const int2 *>(in)[idx];
+      }
+      break;
+    case 16:
+      if (element_idx * 16 < num_bytes)
+      {
+        reinterpret_cast<int4 *>(out)[idx] =
+            reinterpret_cast<const int4 *>(in)[idx];
+      }
+      break;
+    default:
+      cudaError_t error = cudaErrorInvalidValue;
+      break;
+    }
+  }
+  // Handle remaining bytes if any
+  int remaining_bytes = num_bytes % bytes_per_inst;
+  int remaining_start_idx = num_bytes - remaining_bytes;
+
+  if (idx == 0 && remaining_bytes > 0)
+  {
+    for (int i = 0; i < remaining_bytes; ++i)
+    {
+      out[remaining_start_idx + i] = in[remaining_start_idx + i];
+    }
   }
 }
 
 template<typename T, class Functor>
 __global__ void transformKernel(const T* in, T* out, size_t num_elements, Functor f) {
-const int i = blockDim.x * blockIdx.x + threadIdx.x;
+  const int i = blockDim.x * blockIdx.x + threadIdx.x;
   
   if (i < num_elements) {
-    out[i] = f(in[i]);
+    T in_value;
+
+    memcpy(&in_value, &in[i], sizeof(T));
+
+    //Apply the functir
+    T out_value = f(in_value);
+
+    memcpy(&out[i], &out_value, sizeof(T));
   }
 }
 
