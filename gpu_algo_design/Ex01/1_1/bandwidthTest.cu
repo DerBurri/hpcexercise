@@ -49,9 +49,7 @@
 #include <iostream>
 #include <memory>
 
-static const char *sSDKsample = "CUDA Bandwidth Test";
-
-#define DEBUG
+// #define DEBUG
 
 // defines, project
 #define MEMCOPY_ITERATIONS 1
@@ -182,7 +180,7 @@ void calculateKernelConfig(int numElements, dim3 &grid, dim3 &block, KernelType 
   block.x = blockSize;
   // Calculated Kernel Launch Configuration
 #ifdef DEBUG
-  printf("Kernel launch config: Grid Size: %d, Block Size: %d\n", grid.x, block.x);
+  printf("Kernel launch config: Num elements: %d, Grid Size: %d, Block Size: %d\n", numElements, grid.x, block.x);
 #endif
 }
 
@@ -270,7 +268,7 @@ __global__ void transformKernel(const T *in, T *out, size_t num_elements, Functo
 {
   const int i = blockDim.x * blockIdx.x + threadIdx.x;
 
-  if (i < num_elements)
+  if (i < num_elements/sizeof(T))
   {
     T in_value;
 
@@ -300,6 +298,7 @@ int main(int argc, char **argv)
 
   // set logfile name and start logs
 #ifdef DEBUG
+  static const char *sSDKsample = "CUDA Bandwidth Test";
   printf("[%s] - Starting...\n", sSDKsample);
 #endif
 
@@ -547,7 +546,7 @@ int runTest(const int argc, const char **argv)
         if (strcmp(dtypeStr, "char") == 0)
           dtype = CHAR;
         else if (strcmp(dtypeStr, "short") == 0)
-          dtype = INT;
+          dtype = SHORT;
         else if (strcmp(dtypeStr, "int") == 0)
           dtype = INT;
         else if (strcmp(dtypeStr, "half") == 0)
@@ -725,7 +724,7 @@ void testBandwidth(unsigned int start, unsigned int end, unsigned int increment,
           testBandwidthShmoo<int>(kind, printmode, memMode, startDevice, endDevice, wc, kernelMode, bytes_per_inst, dtype);
           break;
         case HALF:
-          // testBandwidthShmoo<half2>(kind, printmode, memMode, startDevice, endDevice, wc, kernelMode, bytes_per_inst, dtype);
+          testBandwidthShmoo<half>(kind, printmode, memMode, startDevice, endDevice, wc, kernelMode, bytes_per_inst, dtype);
           break;
         case FLOAT:
           testBandwidthShmoo<float>(kind, printmode, memMode, startDevice, endDevice, wc, kernelMode, bytes_per_inst, dtype);
@@ -1017,25 +1016,28 @@ float testDeviceToHostTransfer(unsigned int memSize, memoryMode memMode,
     checkCudaErrors(cudaEventRecord(start, 0));
     for (unsigned int i = 0; i < MEMCOPY_ITERATIONS; i++)
     {
+#ifdef DEBUG
+      printf("Copying %d bytes...\n", memSize);
+#endif
        if (KERNEL_MODE == mode)
       {
         // printf("Using new kernel\n");
         // printf("Synchronizing");
 
-        calculateKernelConfig(memSize, grid, block, copyKernel<T>);
+        calculateKernelConfig(memSize/sizeof(T), grid, block, copyKernel<T>);
         copyKernel<<<grid.x, block.x>>>(d_idata, h_odata, memSize);
       }
       else if (KERNEL2_MODE == mode)
       {
         // printf("Using new kernel");
-        calculateKernelConfig(memSize, grid, block, copyKernel2<T>);
+        calculateKernelConfig(memSize/sizeof(T), grid, block, copyKernel2<T>);
         copyKernel2<<<grid.x, block.x>>>(d_idata, h_odata, memSize, bytes_per_inst);
       }
       else if (KERNEL3_MODE == mode)
       {
          MultiplyByTwo multiplyByTwo;
 
-         calculateKernelConfig(memSize, grid, block, transformKernel<T,MultiplyByTwo>);
+         calculateKernelConfig(memSize/sizeof(T), grid, block, transformKernel<T,MultiplyByTwo>);
          //printf("Using new kernel");
          transformKernel<<<grid.x, block.x>>>(h_odata, d_idata, memSize, multiplyByTwo);
       } else {
@@ -1169,24 +1171,27 @@ float testHostToDeviceTransfer(unsigned int memSize, memoryMode memMode,
     checkCudaErrors(cudaEventRecord(start, 0));
     for (unsigned int i = 0; i < MEMCOPY_ITERATIONS; i++)
     {
+#ifdef DEBUG
+      printf("Copying %d bytes...\n", memSize);
+#endif
       if (KERNEL_MODE == mode)
       {
         // printf("Using new kernel\n");
         // printf("Synchronizing");
 
-        calculateKernelConfig(memSize, grid, block, copyKernel<T>);
+        calculateKernelConfig(memSize/sizeof(T), grid, block, copyKernel<T>);
         copyKernel<<<grid.x, block.x>>>(h_odata, d_idata, memSize);
       }
       else if (KERNEL2_MODE == mode)
       {
         // printf("Using new kernel");
-        calculateKernelConfig(memSize, grid, block, copyKernel2<T>);
+        calculateKernelConfig(memSize/sizeof(T), grid, block, copyKernel2<T>);
         copyKernel2<<<grid.x, block.x>>>(h_odata, d_idata, memSize, bytes_per_inst);
       }
       else if (KERNEL3_MODE == mode)
       {
         MultiplyByTwo multipleByTwo;
-        calculateKernelConfig(memSize, grid, block, transformKernel<T, MultiplyByTwo>);
+        calculateKernelConfig(memSize/sizeof(T), grid, block, transformKernel<T, MultiplyByTwo>);
         transformKernel<<<grid.x, block.x>>>(h_odata, d_idata, memSize,multipleByTwo);
       }
       else
@@ -1284,6 +1289,9 @@ float testDeviceToDeviceTransfer(unsigned int memSize, kernelMode mode, int byte
   checkCudaErrors(cudaMalloc((void **)&d_odata, memSize));
   dim3 grid, block;
   // initialize memory
+#ifdef DEBUG
+      printf("Copying %d bytes...\n", memSize);
+#endif
   if (KERNEL_MODE == mode)
   {
     //
@@ -1291,20 +1299,20 @@ float testDeviceToDeviceTransfer(unsigned int memSize, kernelMode mode, int byte
     // printf("Using new kernel\n");
     // printf("Synchronizing");
 
-    calculateKernelConfig(memSize, grid, block, copyKernel<T>);
+    calculateKernelConfig(memSize/sizeof(T), grid, block, copyKernel<T>);
     copyKernel<<<grid.x, block.x>>>(d_idata, d_odata, memSize);
   }
   else if (KERNEL2_MODE == mode)
   {
     // printf("Using new kernel");
-    calculateKernelConfig(memSize, grid, block, copyKernel2<T>);
+    calculateKernelConfig(memSize/sizeof(T), grid, block, copyKernel2<T>);
     copyKernel2<<<1, 1, 1024>>>(d_idata, d_odata, memSize, 4);
   }
   else if (KERNEL3_MODE == mode)
   {
     MultiplyByTwo multipleByTwo;
 
-    calculateKernelConfig(memSize, grid, block, transformKernel<T, MultiplyByTwo>);
+    calculateKernelConfig(memSize/sizeof(T), grid, block, transformKernel<T, MultiplyByTwo>);
     // printf("Using new kernel");
     transformKernel<<<1,1,1024>>>(d_idata, d_odata, memSize,multipleByTwo);
   }
