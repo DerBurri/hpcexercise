@@ -115,8 +115,6 @@ enum kernelMode
   KERNEL3_MODE
 };
 
-__global__ void copyKernel(const unsigned char *in, unsigned char *out, size_t num_bytes);
-
 const char *sMemoryCopyKind[] = {"Device to Host", "Host to Device",
                                  "Device to Device", NULL};
 
@@ -133,7 +131,7 @@ char **pArgv = NULL;
 int runTest(const int argc, const char **argv);
 void testBandwidth(unsigned int start, unsigned int end, unsigned int increment,
                    testMode mode, memcpyKind kind, printMode printmode,
-                   memoryMode memMode, int startDevice, int endDevice, bool wc, kernelMode kernelMode, int bytes_per_inst);
+                   memoryMode memMode, int startDevice, int endDevice, bool wc, kernelMode kernelMode, int bytes_per_inst, char* dtypeStr);
 void testBandwidthQuick(unsigned int size, memcpyKind kind, printMode printmode,
                         memoryMode memMode, int startDevice, int endDevice,
                         bool wc, kernelMode mode, int bytes_per_inst);
@@ -141,20 +139,24 @@ void testBandwidthRange(unsigned int start, unsigned int end,
                         unsigned int increment, memcpyKind kind,
                         printMode printmode, memoryMode memMode,
                         int startDevice, int endDevice, bool wc, kernelMode mode, int bytes_per_inst);
+template <typename T>
 void testBandwidthShmoo(memcpyKind kind, printMode printmode,
                         memoryMode memMode, int startDevice, int endDevice,
-                        bool wc, kernelMode mode, int bytes_per_inst);
+                        bool wc, kernelMode mode, int bytes_per_inst, char* dtypeStr);
+template <typename T>
 float testDeviceToHostTransfer(unsigned int memSize, memoryMode memMode,
                                bool wc, kernelMode mode, int bytes_per_inst);
+template <typename T>
 float testHostToDeviceTransfer(unsigned int memSize, memoryMode memMode,
                                bool wc, kernelMode mode, int bytes_per_inst);
+template <typename T>
 float testDeviceToDeviceTransfer(unsigned int memSize, kernelMode mode, int bytes_per_inst);
 void printResultsReadable(unsigned int *memSizes, double *bandwidths,
                           unsigned int count, memcpyKind kind,
                           memoryMode memMode, int iNumDevs, bool wc);
 void printResultsCSV(unsigned int *memSizes, double *bandwidths,
                      unsigned int count, memcpyKind kind, memoryMode memMode,
-                     int iNumDevs, bool wc, kernelMode mode, int bytes_per_inst);
+                     int iNumDevs, bool wc, kernelMode mode, int bytes_per_inst, std::string dtypeStr);
 void printHelp(void);
 
 template <typename KernelType>
@@ -174,7 +176,8 @@ void calculateKernelConfig(int numElements, dim3 &grid, dim3 &block, KernelType 
 // Kernels
 ////////////////////////////////////////////////////////////////////////////////
 
-__global__ void copyKernel(const unsigned char *in, unsigned char *out, size_t num_bytes)
+template <typename T>
+__global__ void copyKernel(const T *in, T *out, size_t num_bytes)
 {
   int i = blockDim.x * blockIdx.x + threadIdx.x;
 
@@ -184,38 +187,9 @@ __global__ void copyKernel(const unsigned char *in, unsigned char *out, size_t n
   }
 }
 
-// __global__ void copyKernel2(unsigned char* in, unsigned char* out, size_t num_bytes, size_t bytes_per_inst) {
-//     int i = (blockDim.x * blockIdx.x + threadIdx.x);
-//     //int end = num_bytes / bytes_per_inst * bytes_per_inst;
-//     if (i < num_bytes  - bytes_per_inst + 1)
-//     {
-//       printf("copying\n");
-//     if (bytes_per_inst == 1) {
-//       char* in_vec = reinterpret_cast<char*>(in);
-//       char* out_vec = reinterpret_cast<char*>(out);
-//       if (i < num_bytes) {
-//         out_vec[i / 1] = in_vec[i / 1];
-//       }
-//     }
-//     if (bytes_per_inst == 2) {
-//       char2* in_vec = reinterpret_cast<char2*>(in);
-//       char2* out_vec = reinterpret_cast<char2*>(out);
-//       if (i < num_bytes) {
-//         out_vec[i / 2] = in_vec[i / 2];
-//       }
-//     }
-//     if (bytes_per_inst == 4) {
-//       char4* in_vec = reinterpret_cast<char4*>(in);
-//       char4* out_vec = reinterpret_cast<char4*>(out);
-//       if (i < num_bytes) {
-//         out_vec[i / 4] = in_vec[i / 4];
-//       }
-//     }
-//     }
-// }
-
-__global__ void copyKernel2(const unsigned char *__restrict__ in,
-                            unsigned char *__restrict__ out,
+template <typename T>
+__global__ void copyKernel2(const T *__restrict__ in,
+                            T *__restrict__ out,
                             size_t num_bytes, int bytes_per_inst)
 {
   unsigned int total_threads = gridDim.x * blockDim.x;
@@ -351,6 +325,7 @@ int runTest(const int argc, const char **argv)
   bool wc = false;
   char *modeStr;
   char *kernelStr;
+  char *dtypeStr;
   char *device = NULL;
   printMode printmode = USER_READABLE;
   char *memModeStr = NULL;
@@ -527,12 +502,15 @@ int runTest(const int argc, const char **argv)
       //printf("Using %d bytes per intruction\n", bytes_per_inst);
     }
     else {
-	bytes_per_inst = 4;
+    bytes_per_inst = 4;
     }
     //printf("Bytes_per_instruction: %d\n", bytes_per_inst);
   }
-  
-  
+
+  if (kernel == KERNEL3_MODE) {
+      getCmdLineArgumentString(argc, argv, "dtype", &dtypeStr);
+  }
+
   if (checkCmdLineFlag(argc, argv, "htod"))
   {
     htod = true;
@@ -634,21 +612,21 @@ int runTest(const int argc, const char **argv)
   {
     testBandwidth((unsigned int)start, (unsigned int)end,
                   (unsigned int)increment, mode, HOST_TO_DEVICE, printmode,
-                  memMode, startDevice, endDevice, wc, kernel, bytes_per_inst);
+                  memMode, startDevice, endDevice, wc, kernel, bytes_per_inst, dtypeStr);
   }
 
   if (dtoh)
   {
     testBandwidth((unsigned int)start, (unsigned int)end,
                   (unsigned int)increment, mode, DEVICE_TO_HOST, printmode,
-                  memMode, startDevice, endDevice, wc, kernel, bytes_per_inst);
+                  memMode, startDevice, endDevice, wc, kernel, bytes_per_inst, dtypeStr);
   }
 
   if (dtod)
   {
     testBandwidth((unsigned int)start, (unsigned int)end,
                   (unsigned int)increment, mode, DEVICE_TO_DEVICE, printmode,
-                  memMode, startDevice, endDevice, wc, kernel, bytes_per_inst);
+                  memMode, startDevice, endDevice, wc, kernel, bytes_per_inst, dtypeStr);
   }
 
   // Ensure that we reset all CUDA Devices in question
@@ -663,10 +641,11 @@ int runTest(const int argc, const char **argv)
 ///////////////////////////////////////////////////////////////////////////////
 //  Run a bandwidth test
 ///////////////////////////////////////////////////////////////////////////////
+
 void testBandwidth(unsigned int start, unsigned int end, unsigned int increment,
                    testMode mode, memcpyKind kind, printMode printmode,
                    memoryMode memMode, int startDevice, int endDevice,
-                   bool wc, kernelMode kernelMode, int bytes_per_inst)
+                   bool wc, kernelMode kernelMode, int bytes_per_inst, char* dtypeStr)
 {
   switch (mode)
   {
@@ -681,8 +660,17 @@ void testBandwidth(unsigned int start, unsigned int end, unsigned int increment,
     break;
 
   case SHMOO_MODE:
-    testBandwidthShmoo(kind, printmode, memMode, startDevice, endDevice, wc, kernelMode, bytes_per_inst);
-    break;
+        if (strcmp(dtypeStr, "short") == 0)
+            testBandwidthShmoo<short>(kind, printmode, memMode, startDevice, endDevice, wc, kernelMode, bytes_per_inst, dtypeStr);
+        else if (strcmp(dtypeStr, "int") == 0)
+            testBandwidthShmoo<int>(kind, printmode, memMode, startDevice, endDevice, wc, kernelMode, bytes_per_inst, dtypeStr);
+        else if (strcmp(dtypeStr, "float") == 0)
+            testBandwidthShmoo<float>(kind, printmode, memMode, startDevice, endDevice, wc, kernelMode, bytes_per_inst, dtypeStr);
+        else if (strcmp(dtypeStr, "double") == 0)
+            testBandwidthShmoo<double>(kind, printmode, memMode, startDevice, endDevice, wc, kernelMode, bytes_per_inst, dtypeStr);
+        else
+            testBandwidthShmoo<unsigned char>(kind, printmode, memMode, startDevice, endDevice, wc, kernelMode, bytes_per_inst, dtypeStr);
+      break;
 
   default:
     break;
@@ -735,15 +723,15 @@ void testBandwidthRange(unsigned int start, unsigned int end,
       switch (kind)
       {
       case DEVICE_TO_HOST:
-        bandwidths[i] += testDeviceToHostTransfer(memSizes[i], memMode, wc, mode, bytes_per_inst);
+        bandwidths[i] += testDeviceToHostTransfer<unsigned char>(memSizes[i], memMode, wc, mode, bytes_per_inst);
         break;
 
       case HOST_TO_DEVICE:
-        bandwidths[i] += testHostToDeviceTransfer(memSizes[i], memMode, wc, mode, bytes_per_inst);
+        bandwidths[i] += testHostToDeviceTransfer<unsigned char>(memSizes[i], memMode, wc, mode, bytes_per_inst);
         break;
 
       case DEVICE_TO_DEVICE:
-        bandwidths[i] += testDeviceToDeviceTransfer(memSizes[i], mode, bytes_per_inst);
+        bandwidths[i] += testDeviceToDeviceTransfer<unsigned char>(memSizes[i], mode, bytes_per_inst);
         break;
       }
     }
@@ -753,7 +741,7 @@ void testBandwidthRange(unsigned int start, unsigned int end,
   if (printmode == CSV)
   {
     printResultsCSV(memSizes, bandwidths, count, kind, memMode,
-                    (1 + endDevice - startDevice), wc, mode, bytes_per_inst);
+                    (1 + endDevice - startDevice), wc, mode, bytes_per_inst, "char");
   }
   else
   {
@@ -769,9 +757,10 @@ void testBandwidthRange(unsigned int start, unsigned int end,
 //////////////////////////////////////////////////////////////////////////////
 // Intense shmoo mode - covers a large range of values with varying increments
 //////////////////////////////////////////////////////////////////////////////
+template <typename T>
 void testBandwidthShmoo(memcpyKind kind, printMode printmode,
                         memoryMode memMode, int startDevice, int endDevice,
-                        bool wc, kernelMode mode, int bytes_per_inst)
+                        bool wc, kernelMode mode, int bytes_per_inst, char* dtypeStr)
 {
   // count the number of copies to make
   unsigned int count =
@@ -854,17 +843,17 @@ void testBandwidthShmoo(memcpyKind kind, printMode printmode,
       {
       case DEVICE_TO_HOST:
         bandwidths[iteration] +=
-            testDeviceToHostTransfer(memSizes[iteration], memMode, wc, mode, bytes_per_inst);
+            testDeviceToHostTransfer<T>(memSizes[iteration], memMode, wc, mode, bytes_per_inst);
         break;
 
       case HOST_TO_DEVICE:
         bandwidths[iteration] +=
-            testHostToDeviceTransfer(memSizes[iteration], memMode, wc, mode, bytes_per_inst);
+            testHostToDeviceTransfer<T>(memSizes[iteration], memMode, wc, mode, bytes_per_inst);
         break;
 
       case DEVICE_TO_DEVICE:
         bandwidths[iteration] +=
-            testDeviceToDeviceTransfer(memSizes[iteration], mode, bytes_per_inst);
+            testDeviceToDeviceTransfer<T>(memSizes[iteration], mode, bytes_per_inst);
         break;
       }
 
@@ -880,7 +869,7 @@ void testBandwidthShmoo(memcpyKind kind, printMode printmode,
   if (CSV == printmode)
   {
     printResultsCSV(memSizes, bandwidths, count, kind, memMode,
-                    (1 + endDevice - startDevice), wc, mode, bytes_per_inst);
+                    (1 + endDevice - startDevice), wc, mode, bytes_per_inst, dtypeStr);
   }
   else
   {
@@ -896,14 +885,15 @@ void testBandwidthShmoo(memcpyKind kind, printMode printmode,
 ///////////////////////////////////////////////////////////////////////////////
 //  test the bandwidth of a device to host memcopy of a specific size
 ///////////////////////////////////////////////////////////////////////////////
+template <typename T>
 float testDeviceToHostTransfer(unsigned int memSize, memoryMode memMode,
                                bool wc, kernelMode mode, int bytes_per_inst)
 {
   StopWatchInterface *timer = NULL;
   float elapsedTimeInMs = 0.0f;
   float bandwidthInGBs = 0.0f;
-  unsigned char *h_idata = NULL;
-  unsigned char *h_odata = NULL;
+  T *h_idata = NULL;
+  T *h_odata = NULL;
   cudaEvent_t start, stop;
 
   sdkCreateTimer(&timer);
@@ -927,8 +917,8 @@ float testDeviceToHostTransfer(unsigned int memSize, memoryMode memMode,
   else
   {
     // pageable memory mode - use malloc
-    h_idata = (unsigned char *)malloc(memSize);
-    h_odata = (unsigned char *)malloc(memSize);
+    h_idata = (T *)malloc(memSize);
+    h_odata = (T *)malloc(memSize);
 
     if (h_idata == 0 || h_odata == 0)
     {
@@ -938,13 +928,13 @@ float testDeviceToHostTransfer(unsigned int memSize, memoryMode memMode,
   }
 
   // initialize the memory
-  for (unsigned int i = 0; i < memSize / sizeof(unsigned char); i++)
+  for (unsigned int i = 0; i < memSize / sizeof(T); i++)
   {
-    h_idata[i] = (unsigned char)(i & 0xff);
+    h_idata[i] = (T)(i & 0xff);
   }
 
   // allocate device memory
-  unsigned char *d_idata;
+  T *d_idata;
   checkCudaErrors(cudaMalloc((void **)&d_idata, memSize));
 
   // initialize the device memory
@@ -965,21 +955,21 @@ float testDeviceToHostTransfer(unsigned int memSize, memoryMode memMode,
         // printf("Using new kernel\n");
         // printf("Synchronizing");
 
-        calculateKernelConfig(memSize, grid, block, copyKernel);
+        calculateKernelConfig(memSize, grid, block, copyKernel<T>);
         copyKernel<<<grid.x, block.x>>>(d_idata, h_odata, memSize);
       }
       else if (KERNEL2_MODE == mode)
       {
         // printf("Using new kernel");
-        calculateKernelConfig(memSize, grid, block, copyKernel2);
+        calculateKernelConfig(memSize, grid, block, copyKernel2<T>);
         copyKernel2<<<grid.x, block.x>>>(d_idata, h_odata, memSize, bytes_per_inst);
       }
       else if (KERNEL3_MODE == mode)
       {
          MultiplyByTwo multiplyByTwo;
 
-         calculateKernelConfig(memSize, grid, block, transformKernel<int,MultiplyByTwo>);
-         printf("Using new kernel");
+         calculateKernelConfig(memSize, grid, block, transformKernel<T,MultiplyByTwo>);
+         //printf("Using new kernel");
          transformKernel<<<grid.x, block.x>>>(h_odata, d_idata, memSize, multiplyByTwo);
       } else {
         // printf("Running origianl");
@@ -1040,6 +1030,7 @@ float testDeviceToHostTransfer(unsigned int memSize, memoryMode memMode,
 ///////////////////////////////////////////////////////////////////////////////
 //! test the bandwidth of a host to device memcopy of a specific size
 ///////////////////////////////////////////////////////////////////////////////
+template <typename T>
 float testHostToDeviceTransfer(unsigned int memSize, memoryMode memMode,
                                bool wc, kernelMode mode, int bytes_per_inst)
 {
@@ -1052,7 +1043,7 @@ float testHostToDeviceTransfer(unsigned int memSize, memoryMode memMode,
   checkCudaErrors(cudaEventCreate(&stop));
 
   // allocate host memory
-  unsigned char *h_odata = NULL;
+  T *h_odata = NULL;
 
   if (PINNED == memMode)
   {
@@ -1068,7 +1059,7 @@ float testHostToDeviceTransfer(unsigned int memSize, memoryMode memMode,
   else
   {
     // pageable memory mode - use malloc
-    h_odata = (unsigned char *)malloc(memSize);
+    h_odata = (T *)malloc(memSize);
 
     if (h_odata == 0)
     {
@@ -1077,8 +1068,8 @@ float testHostToDeviceTransfer(unsigned int memSize, memoryMode memMode,
     }
   }
 
-  unsigned char *h_cacheClear1 = (unsigned char *)malloc(CACHE_CLEAR_SIZE);
-  unsigned char *h_cacheClear2 = (unsigned char *)malloc(CACHE_CLEAR_SIZE);
+  T *h_cacheClear1 = (T *)malloc(CACHE_CLEAR_SIZE);
+  T *h_cacheClear2 = (T *)malloc(CACHE_CLEAR_SIZE);
 
   if (h_cacheClear1 == 0 || h_cacheClear2 == 0)
   {
@@ -1087,19 +1078,19 @@ float testHostToDeviceTransfer(unsigned int memSize, memoryMode memMode,
   }
 
   // initialize the memory
-  for (unsigned int i = 0; i < memSize / sizeof(unsigned char); i++)
+  for (unsigned int i = 0; i < memSize / sizeof(T); i++)
   {
-    h_odata[i] = (unsigned char)(i & 0xff);
+    h_odata[i] = (T)(i & 0xff);
   }
 
-  for (unsigned int i = 0; i < CACHE_CLEAR_SIZE / sizeof(unsigned char); i++)
+  for (unsigned int i = 0; i < CACHE_CLEAR_SIZE / sizeof(T); i++)
   {
-    h_cacheClear1[i] = (unsigned char)(i & 0xff);
-    h_cacheClear2[i] = (unsigned char)(0xff - (i & 0xff));
+    h_cacheClear1[i] = (T)(i & 0xff);
+    h_cacheClear2[i] = (T)(0xff - (i & 0xff));
   }
 
   // allocate device memory
-  unsigned char *d_idata;
+  T *d_idata;
   checkCudaErrors(cudaMalloc((void **)&d_idata, memSize));
 
   // copy host memory to device memory
@@ -1116,19 +1107,19 @@ float testHostToDeviceTransfer(unsigned int memSize, memoryMode memMode,
         // printf("Using new kernel\n");
         // printf("Synchronizing");
 
-        calculateKernelConfig(memSize, grid, block, copyKernel);
+        calculateKernelConfig(memSize, grid, block, copyKernel<T>);
         copyKernel<<<grid.x, block.x>>>(h_odata, d_idata, memSize);
       }
       else if (KERNEL2_MODE == mode)
       {
         // printf("Using new kernel");
-        calculateKernelConfig(memSize, grid, block, copyKernel2);
+        calculateKernelConfig(memSize, grid, block, copyKernel2<T>);
         copyKernel2<<<grid.x, block.x>>>(h_odata, d_idata, memSize, bytes_per_inst);
       }
       else if (KERNEL3_MODE == mode)
       {
         MultiplyByTwo multipleByTwo;
-        calculateKernelConfig(memSize, grid, block, transformKernel<int, MultiplyByTwo>);
+        calculateKernelConfig(memSize, grid, block, transformKernel<T, MultiplyByTwo>);
         transformKernel<<<grid.x, block.x>>>(h_odata, d_idata, memSize,multipleByTwo);
       }
       else
@@ -1192,6 +1183,7 @@ float testHostToDeviceTransfer(unsigned int memSize, memoryMode memMode,
 ///////////////////////////////////////////////////////////////////////////////
 //! test the bandwidth of a device to device memcopy of a specific size
 ///////////////////////////////////////////////////////////////////////////////
+template <typename T>
 float testDeviceToDeviceTransfer(unsigned int memSize, kernelMode mode, int bytes_per_inst)
 {
   StopWatchInterface *timer = NULL;
@@ -1204,7 +1196,7 @@ float testDeviceToDeviceTransfer(unsigned int memSize, kernelMode mode, int byte
   checkCudaErrors(cudaEventCreate(&stop));
 
   // allocate host memory
-  unsigned char *h_idata = (unsigned char *)malloc(memSize);
+  T *h_idata = (T *)malloc(memSize);
 
   if (h_idata == 0)
   {
@@ -1213,15 +1205,15 @@ float testDeviceToDeviceTransfer(unsigned int memSize, kernelMode mode, int byte
   }
 
   // initialize the host memory
-  for (unsigned int i = 0; i < memSize / sizeof(unsigned char); i++)
+  for (unsigned int i = 0; i < memSize / sizeof(T); i++)
   {
-    h_idata[i] = (unsigned char)(i & 0xff);
+    h_idata[i] = (T)(i & 0xff);
   }
 
   // allocate device memory
-  unsigned char *d_idata;
+  T *d_idata;
   checkCudaErrors(cudaMalloc((void **)&d_idata, memSize));
-  unsigned char *d_odata;
+  T *d_odata;
   checkCudaErrors(cudaMalloc((void **)&d_odata, memSize));
   dim3 grid, block;
   // initialize memory
@@ -1232,20 +1224,20 @@ float testDeviceToDeviceTransfer(unsigned int memSize, kernelMode mode, int byte
     // printf("Using new kernel\n");
     // printf("Synchronizing");
 
-    calculateKernelConfig(memSize, grid, block, copyKernel);
+    calculateKernelConfig(memSize, grid, block, copyKernel<T>);
     copyKernel<<<grid.x, block.x>>>(d_idata, d_odata, memSize);
   }
   else if (KERNEL2_MODE == mode)
   {
     // printf("Using new kernel");
-    calculateKernelConfig(memSize, grid, block, copyKernel2);
+    calculateKernelConfig(memSize, grid, block, copyKernel2<T>);
     copyKernel2<<<1, 1, 1024>>>(d_idata, d_odata, memSize, 4);
   }
   else if (KERNEL3_MODE == mode)
   {
     MultiplyByTwo multipleByTwo;
 
-    calculateKernelConfig(memSize, grid, block, transformKernel<int, MultiplyByTwo>);
+    calculateKernelConfig(memSize, grid, block, transformKernel<T, MultiplyByTwo>);
     // printf("Using new kernel");
     transformKernel<<<1,1,1024>>>(d_idata, d_odata, memSize,multipleByTwo);
   }
@@ -1329,7 +1321,7 @@ void printResultsReadable(unsigned int *memSizes, double *bandwidths,
 ///////////////////////////////////////////////////////////////////////////
 void printResultsCSV(unsigned int *memSizes, double *bandwidths,
                      unsigned int count, memcpyKind kind, memoryMode memMode,
-                     int iNumDevs, bool wc, kernelMode mode, int bytes_per_inst)
+                     int iNumDevs, bool wc, kernelMode mode, int bytes_per_inst, std::string dtypeStr)
 {
   std::string sConfig;
 
@@ -1371,7 +1363,7 @@ void printResultsCSV(unsigned int *memSizes, double *bandwidths,
 	else if (mode == KERNEL2_MODE)
 		sConfig += "-kernel2-" + std::to_string(bytes_per_inst) + "BPI";
 	else if (mode == KERNEL3_MODE)
-		sConfig += "-kernel3";
+		sConfig += "-kernel3-" + dtypeStr;
 
   unsigned int i;
   double dSeconds = 0.0;
@@ -1380,9 +1372,9 @@ void printResultsCSV(unsigned int *memSizes, double *bandwidths,
   {
     dSeconds = (double)memSizes[i] / (bandwidths[i] * (double)(1e9));
     printf(
-        "bandwidthTest-%s-kernel%d-bytesperinst%d, Bandwidth = %.1f GB/s, Time = %.5f s, Size = %u "
+        "bandwidthTest-%s, Bandwidth = %.1f GB/s, Time = %.5f s, Size = %u "
         "bytes, NumDevsUsed = %d\n",
-        sConfig.c_str(), mode, bytes_per_inst, bandwidths[i], dSeconds, memSizes[i], iNumDevs);
+        sConfig.c_str(), bandwidths[i], dSeconds, memSizes[i], iNumDevs);
   }
 }
 
