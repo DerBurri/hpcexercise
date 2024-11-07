@@ -36,6 +36,7 @@
  */
 
 // CUDA runtime
+#include <cuda_fp16.h>
 #include <cuda_runtime.h>
 
 // includes
@@ -117,6 +118,16 @@ enum kernelMode
   KERNEL3_MODE
 };
 
+enum testedDtype
+{
+  CHAR,
+  SHORT,
+  INT,
+  HALF,
+  FLOAT,
+  DOUBLE
+};
+
 const char *sMemoryCopyKind[] = {"Device to Host", "Host to Device",
                                  "Device to Device", NULL};
 
@@ -133,7 +144,7 @@ char **pArgv = NULL;
 int runTest(const int argc, const char **argv);
 void testBandwidth(unsigned int start, unsigned int end, unsigned int increment,
                    testMode mode, memcpyKind kind, printMode printmode,
-                   memoryMode memMode, int startDevice, int endDevice, bool wc, kernelMode kernelMode, int bytes_per_inst, char* dtypeStr);
+                   memoryMode memMode, int startDevice, int endDevice, bool wc, kernelMode kernelMode, int bytes_per_inst, testedDtype dtype);
 void testBandwidthQuick(unsigned int size, memcpyKind kind, printMode printmode,
                         memoryMode memMode, int startDevice, int endDevice,
                         bool wc, kernelMode mode, int bytes_per_inst);
@@ -144,7 +155,7 @@ void testBandwidthRange(unsigned int start, unsigned int end,
 template <typename T>
 void testBandwidthShmoo(memcpyKind kind, printMode printmode,
                         memoryMode memMode, int startDevice, int endDevice,
-                        bool wc, kernelMode mode, int bytes_per_inst, char* dtypeStr);
+                        bool wc, kernelMode mode, int bytes_per_inst, testedDtype dtype);
 template <typename T>
 float testDeviceToHostTransfer(unsigned int memSize, memoryMode memMode,
                                bool wc, kernelMode mode, int bytes_per_inst);
@@ -158,7 +169,7 @@ void printResultsReadable(unsigned int *memSizes, double *bandwidths,
                           memoryMode memMode, int iNumDevs, bool wc);
 void printResultsCSV(unsigned int *memSizes, double *bandwidths,
                      unsigned int count, memcpyKind kind, memoryMode memMode,
-                     int iNumDevs, bool wc, kernelMode mode, int bytes_per_inst, std::string dtypeStr);
+                     int iNumDevs, bool wc, kernelMode mode, int bytes_per_inst, testedDtype dtype);
 void printHelp(void);
 
 template <typename KernelType>
@@ -326,6 +337,7 @@ int runTest(const int argc, const char **argv)
   int bytes_per_inst = DEFAULT_BYTES_PER_INSTRUCTION;
   testMode mode = QUICK_MODE;
   kernelMode kernel = DEFAULT;
+  testedDtype dtype = CHAR;
   bool htod = false;
   bool dtoh = false;
   bool dtod = false;
@@ -531,7 +543,22 @@ int runTest(const int argc, const char **argv)
   }
 
   if (kernel == KERNEL3_MODE) {
-      getCmdLineArgumentString(argc, argv, "dtype", &dtypeStr);
+      if (getCmdLineArgumentString(argc, argv, "dtype", &dtypeStr)){
+        if (strcmp(dtypeStr, "char") == 0)
+          dtype = CHAR;
+        else if (strcmp(dtypeStr, "short") == 0)
+          dtype = INT;
+        else if (strcmp(dtypeStr, "int") == 0)
+          dtype = INT;
+        else if (strcmp(dtypeStr, "half") == 0)
+          dtype = HALF;
+        else if (strcmp(dtypeStr, "float") == 0)
+          dtype = FLOAT;
+        else if (strcmp(dtypeStr, "double") == 0)
+          dtype = DOUBLE;
+        else
+          dtype = CHAR;
+      }
   }
 
   if (checkCmdLineFlag(argc, argv, "htod"))
@@ -635,21 +662,21 @@ int runTest(const int argc, const char **argv)
   {
     testBandwidth((unsigned int)start, (unsigned int)end,
                   (unsigned int)increment, mode, HOST_TO_DEVICE, printmode,
-                  memMode, startDevice, endDevice, wc, kernel, bytes_per_inst, dtypeStr);
+                  memMode, startDevice, endDevice, wc, kernel, bytes_per_inst, dtype);
   }
 
   if (dtoh)
   {
     testBandwidth((unsigned int)start, (unsigned int)end,
                   (unsigned int)increment, mode, DEVICE_TO_HOST, printmode,
-                  memMode, startDevice, endDevice, wc, kernel, bytes_per_inst, dtypeStr);
+                  memMode, startDevice, endDevice, wc, kernel, bytes_per_inst, dtype);
   }
 
   if (dtod)
   {
     testBandwidth((unsigned int)start, (unsigned int)end,
                   (unsigned int)increment, mode, DEVICE_TO_DEVICE, printmode,
-                  memMode, startDevice, endDevice, wc, kernel, bytes_per_inst, dtypeStr);
+                  memMode, startDevice, endDevice, wc, kernel, bytes_per_inst, dtype);
   }
 
   // Ensure that we reset all CUDA Devices in question
@@ -668,7 +695,7 @@ int runTest(const int argc, const char **argv)
 void testBandwidth(unsigned int start, unsigned int end, unsigned int increment,
                    testMode mode, memcpyKind kind, printMode printmode,
                    memoryMode memMode, int startDevice, int endDevice,
-                   bool wc, kernelMode kernelMode, int bytes_per_inst, char* dtypeStr)
+                   bool wc, kernelMode kernelMode, int bytes_per_inst, testedDtype dtype)
 {
   switch (mode)
   {
@@ -683,18 +710,35 @@ void testBandwidth(unsigned int start, unsigned int end, unsigned int increment,
     break;
 
   case SHMOO_MODE:
-        if (strcmp(dtypeStr, "short") == 0)
-            testBandwidthShmoo<short>(kind, printmode, memMode, startDevice, endDevice, wc, kernelMode, bytes_per_inst, dtypeStr);
-        else if (strcmp(dtypeStr, "int") == 0)
-            testBandwidthShmoo<int>(kind, printmode, memMode, startDevice, endDevice, wc, kernelMode, bytes_per_inst, dtypeStr);
-        else if (strcmp(dtypeStr, "float") == 0)
-            testBandwidthShmoo<float>(kind, printmode, memMode, startDevice, endDevice, wc, kernelMode, bytes_per_inst, dtypeStr);
-        else if (strcmp(dtypeStr, "double") == 0)
-            testBandwidthShmoo<double>(kind, printmode, memMode, startDevice, endDevice, wc, kernelMode, bytes_per_inst, dtypeStr);
-        else
-            testBandwidthShmoo<unsigned char>(kind, printmode, memMode, startDevice, endDevice, wc, kernelMode, bytes_per_inst, dtypeStr);
-      break;
 
+#ifdef DEBUG
+      printf("Running with %d datatype.\n", dtype);
+#endif
+      switch(dtype) {
+        case CHAR:
+          testBandwidthShmoo<unsigned char>(kind, printmode, memMode, startDevice, endDevice, wc, kernelMode, bytes_per_inst, dtype);
+          break;
+        case SHORT:
+          testBandwidthShmoo<short>(kind, printmode, memMode, startDevice, endDevice, wc, kernelMode, bytes_per_inst, dtype);
+          break;
+        case INT:
+          testBandwidthShmoo<int>(kind, printmode, memMode, startDevice, endDevice, wc, kernelMode, bytes_per_inst, dtype);
+          break;
+        case HALF:
+          // testBandwidthShmoo<half2>(kind, printmode, memMode, startDevice, endDevice, wc, kernelMode, bytes_per_inst, dtype);
+          break;
+        case FLOAT:
+          testBandwidthShmoo<float>(kind, printmode, memMode, startDevice, endDevice, wc, kernelMode, bytes_per_inst, dtype);
+          break;
+        case DOUBLE:
+          testBandwidthShmoo<double>(kind, printmode, memMode, startDevice, endDevice, wc, kernelMode, bytes_per_inst, dtype);
+          break;
+        default:
+          fprintf(stderr, "Unrecognized datatype to measure bandwidth on!\n");
+          exit(EXIT_FAILURE);
+          break;
+      }
+    break;
   default:
     break;
   }
@@ -764,7 +808,7 @@ void testBandwidthRange(unsigned int start, unsigned int end,
   if (printmode == CSV)
   {
     printResultsCSV(memSizes, bandwidths, count, kind, memMode,
-                    (1 + endDevice - startDevice), wc, mode, bytes_per_inst, "char");
+                    (1 + endDevice - startDevice), wc, mode, bytes_per_inst, CHAR);
   }
   else
   {
@@ -783,7 +827,7 @@ void testBandwidthRange(unsigned int start, unsigned int end,
 template <typename T>
 void testBandwidthShmoo(memcpyKind kind, printMode printmode,
                         memoryMode memMode, int startDevice, int endDevice,
-                        bool wc, kernelMode mode, int bytes_per_inst, char* dtypeStr)
+                        bool wc, kernelMode mode, int bytes_per_inst, testedDtype dtype)
 {
   // count the number of copies to make
   unsigned int count =
@@ -892,7 +936,7 @@ void testBandwidthShmoo(memcpyKind kind, printMode printmode,
   if (CSV == printmode)
   {
     printResultsCSV(memSizes, bandwidths, count, kind, memMode,
-                    (1 + endDevice - startDevice), wc, mode, bytes_per_inst, dtypeStr);
+                    (1 + endDevice - startDevice), wc, mode, bytes_per_inst, dtype);
   }
   else
   {
@@ -1344,7 +1388,7 @@ void printResultsReadable(unsigned int *memSizes, double *bandwidths,
 ///////////////////////////////////////////////////////////////////////////
 void printResultsCSV(unsigned int *memSizes, double *bandwidths,
                      unsigned int count, memcpyKind kind, memoryMode memMode,
-                     int iNumDevs, bool wc, kernelMode mode, int bytes_per_inst, std::string dtypeStr)
+                     int iNumDevs, bool wc, kernelMode mode, int bytes_per_inst, testedDtype dtype)
 {
   std::string sConfig;
 
@@ -1379,14 +1423,40 @@ void printResultsCSV(unsigned int *memSizes, double *bandwidths,
     }
   }
   
-	if (mode == DEFAULT)
-		sConfig += "-cudaMemcpy";
-	else if (mode == KERNEL_MODE)
-		sConfig += "-kernel1";
-	else if (mode == KERNEL2_MODE)
-		sConfig += "-kernel2-" + std::to_string(bytes_per_inst) + "BPI";
-	else if (mode == KERNEL3_MODE)
-		sConfig += "-kernel3-" + dtypeStr;
+  if (mode == DEFAULT)
+      sConfig += "-cudaMemcpy";
+  else if (mode == KERNEL_MODE)
+      sConfig += "-kernel1";
+  else if (mode == KERNEL2_MODE)
+      sConfig += "-kernel2-" + std::to_string(bytes_per_inst) + "BPI";
+  else if (mode == KERNEL3_MODE) {
+      sConfig += "-kernel3-";
+
+      switch(dtype) {
+        case CHAR:
+          sConfig += "char";
+          break;
+        case SHORT:
+          sConfig += "short";
+          break;
+        case INT:
+          sConfig += "int";
+          break;
+        case HALF:
+          sConfig += "half";
+          break;
+        case FLOAT:
+          sConfig += "float";
+          break;
+        case DOUBLE:
+          sConfig += "double";
+          break;
+        default:
+          fprintf(stderr, "Unrecognized datatype to print!\n");
+          exit(EXIT_FAILURE);
+          break;
+      }
+  }
 
   unsigned int i;
   double dSeconds = 0.0;
