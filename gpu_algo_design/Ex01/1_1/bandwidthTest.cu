@@ -151,8 +151,8 @@ void printResultsCSV(unsigned int *memSizes, double *bandwidths,
                      int iNumDevs, bool wc);
 void printHelp(void);
 
-template <typename T>
-void calculateKernelConfig(int numElements, dim3 &grid, dim3 &block, T kernel)
+template <typename KernelType>
+void calculateKernelConfig(int numElements, dim3 &grid, dim3 &block, KernelType kernel)
 {
   int minGridSize, blockSize;
   cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, kernel, 0, 0);
@@ -288,6 +288,11 @@ __global__ void transformKernel(const T *in, T *out, size_t num_elements, Functo
     memcpy(&out[i], &out_value, sizeof(T));
   }
 }
+
+// Example Functor
+struct MultiplyByTwo {
+  __host__ __device__ float operator()(float x) const { return x * 2; }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 // Program main
@@ -497,6 +502,11 @@ int runTest(const int argc, const char **argv)
       printf(" Kernel 2\n\n");
       kernel = KERNEL2_MODE;
     }
+    else if (strcmp(kernelStr, "kernel3") == 0)
+    {
+      printf(" Kernel 3\n\n");
+      kernel = KERNEL3_MODE;
+    }
     else
     {
       kernel = DEFAULT;
@@ -508,6 +518,7 @@ int runTest(const int argc, const char **argv)
   if (checkCmdLineFlag(argc, argv, "bytesperinstruction"))
     {
       bytes_per_inst =  getCmdLineArgumentInt(argc, argv, "bytesperinstruction");
+      printf("Using %d bytes per intruction\n", bytes_per_inst);
     }
     else {
       bytes_per_inst = 4;
@@ -944,9 +955,11 @@ float testDeviceToHostTransfer(unsigned int memSize, memoryMode memMode,
       }
       else if (KERNEL3_MODE == mode)
       {
-        // calculateKernelConfig(memSize, grid, block, transformKernel);
-        // printf("Using new kernel");
-        // transformKernel<<<1,1,1024>>>(h_odata, d_idata, memSize, [=] __device__ (auto x) { return 0 * 0.5f;});
+         MultiplyByTwo multiplyByTwo;
+
+         calculateKernelConfig(memSize, grid, block, transformKernel<int,MultiplyByTwo>);
+         printf("Using new kernel");
+         transformKernel<<<grid.x, block.x>>>(h_odata, d_idata, memSize, multiplyByTwo);
       }
       else {
         printf("Running origianl");
@@ -1094,9 +1107,9 @@ float testHostToDeviceTransfer(unsigned int memSize, memoryMode memMode,
       }
       else if (KERNEL3_MODE == mode)
       {
-        // calculateKernelConfig(memSize, grid, block, transformKernel);
-        // printf("Using new kernel");
-        // transformKernel<<<1,1,1024>>>(h_odata, d_idata, memSize, [=] __device__ (auto x) { return 0 * 0.5f;});
+        MultiplyByTwo multipleByTwo;
+        calculateKernelConfig(memSize, grid, block, transformKernel<int, MultiplyByTwo>);
+        transformKernel<<<grid.x, block.x>>>(h_odata, d_idata, memSize,multipleByTwo);
       }
       else
       {
@@ -1210,9 +1223,11 @@ float testDeviceToDeviceTransfer(unsigned int memSize, kernelMode mode, int byte
   }
   else if (KERNEL3_MODE == mode)
   {
-    // calculateKernelConfig(memSize, grid, block, transformKernel);
+    MultiplyByTwo multipleByTwo;
+
+    calculateKernelConfig(memSize, grid, block, transformKernel<int, MultiplyByTwo>);
     // printf("Using new kernel");
-    // transformKernel<<<1,1,1024>>>(h_odata, d_idata, memSize, [=] __device__ (auto x) { return 0 * 0.5f;});
+    transformKernel<<<1,1,1024>>>(d_idata, d_odata, memSize,multipleByTwo);
   }
   else
   {
