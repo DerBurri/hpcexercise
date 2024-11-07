@@ -58,7 +58,7 @@ static const char *sSDKsample = "CUDA Bandwidth Test";
 #define CACHE_CLEAR_SIZE (16 * (1e6)) // 16 M
 
 // shmoo mode defines
-#define SHMOO_MEMSIZE_MAX (64 * (1e6))      // 64 M
+#define SHMOO_MEMSIZE_MAX (300 * (1e6))      // 64 M
 #define SHMOO_MEMSIZE_START (1e3)           // 1 KB
 #define SHMOO_INCREMENT_1KB (1e3)           // 1 KB
 #define SHMOO_INCREMENT_2KB (2 * 1e3)       // 2 KB
@@ -67,12 +67,18 @@ static const char *sSDKsample = "CUDA Bandwidth Test";
 #define SHMOO_INCREMENT_1MB (1e6)           // 1 MB
 #define SHMOO_INCREMENT_2MB (2 * 1e6)       // 2 MB
 #define SHMOO_INCREMENT_4MB (4 * 1e6)       // 4 MB
+#define SHMOO_INCREMENT_8MB (8 * 1e6)       // 8 MB
+#define SHMOO_INCREMENT_13MB (13 * 1e6)       // 13 MB
+#define SHMOO_INCREMENT_25MB (25 * 1e6)       // 25 MB
 #define SHMOO_LIMIT_20KB (20 * (1e3))       // 20 KB
 #define SHMOO_LIMIT_50KB (50 * (1e3))       // 50 KB
 #define SHMOO_LIMIT_100KB (100 * (1e3))     // 100 KB
 #define SHMOO_LIMIT_1MB (1e6)               // 1 MB
 #define SHMOO_LIMIT_16MB (16 * 1e6)         // 16 MB
 #define SHMOO_LIMIT_32MB (32 * 1e6)         // 32 MB
+#define SHMOO_LIMIT_64MB (64 * 1e6)         // 64 MB
+#define SHMOO_LIMIT_128MB (128 * 1e6)         // 128 MB
+#define SHMOO_LIMIT_256MB (256 * 1e6)         // 256 MB
 
 // CPU cache flush
 #define FLUSH_SIZE (256 * 1024 * 1024)
@@ -160,8 +166,8 @@ void calculateKernelConfig(int numElements, dim3 &grid, dim3 &block, KernelType 
   grid.x = (numElements + blockSize - 1) / blockSize;
   block.x = blockSize;
   // Calculated Kernel Launch Configuration
-  printf("Kernel Launch Configuration ");
-  printf("Grid Size: %d, Block Size: %d", grid.x, block.x);
+  //printf("Kernel Launch Configuration ");
+  //printf("Grid Size: %d, Block Size: %d", grid.x, block.x);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -305,7 +311,7 @@ int main(int argc, char **argv)
   flush_buf = (char *)malloc(FLUSH_SIZE);
 
   // set logfile name and start logs
-  printf("[%s] - Starting...\n", sSDKsample);
+  // printf("[%s] - Starting...\n", sSDKsample);
 
   int iRetVal = runTest(argc, (const char **)argv);
 
@@ -315,11 +321,11 @@ int main(int argc, char **argv)
   }
 
   // finish
-  printf("%s\n", (iRetVal == 0) ? "Result = PASS" : "Result = FAIL");
+  // printf("%s\n", (iRetVal == 0) ? "Result = PASS" : "Result = FAIL");
 
-  printf(
-      "\nNOTE: The CUDA Samples are not meant for performance measurements. "
-      "Results may vary when GPU Boost is enabled.\n");
+  // printf(
+  //     "\nNOTE: The CUDA Samples are not meant for performance measurements. "
+  //     "Results may vary when GPU Boost is enabled.\n");
 
   free(flush_buf);
 
@@ -426,7 +432,7 @@ int runTest(const int argc, const char **argv)
     }
   }
 
-  printf("Running on...\n\n");
+  //printf("Running on...\n\n");
 
   for (int currentDevice = startDevice; currentDevice <= endDevice;
        currentDevice++)
@@ -436,7 +442,7 @@ int runTest(const int argc, const char **argv)
 
     if (error_id == cudaSuccess)
     {
-      printf(" Device %d: %s\n", currentDevice, deviceProp.name);
+      //printf(" Device %d: %s\n", currentDevice, deviceProp.name);
 
       if (deviceProp.computeMode == cudaComputeModeProhibited)
       {
@@ -463,17 +469,17 @@ int runTest(const int argc, const char **argv)
     // figure out the mode
     if (strcmp(modeStr, "quick") == 0)
     {
-      printf(" Quick Mode\n\n");
+      //printf(" Quick Mode\n\n");
       mode = QUICK_MODE;
     }
     else if (strcmp(modeStr, "shmoo") == 0)
     {
-      printf(" Shmoo Mode\n\n");
+      //printf(" Shmoo Mode\n\n");
       mode = SHMOO_MODE;
     }
     else if (strcmp(modeStr, "range") == 0)
     {
-      printf(" Range Mode\n\n");
+      //printf(" Range Mode\n\n");
       mode = RANGE_MODE;
     }
     else
@@ -494,17 +500,17 @@ int runTest(const int argc, const char **argv)
   {
     if (strcmp(kernelStr, "kernel1") == 0)
     {
-      printf(" Kernel 1\n\n");
+      // printf(" Kernel 1\n\n");
       kernel = KERNEL_MODE;
     }
     else if (strcmp(kernelStr, "kernel2") == 0)
     {
-      printf(" Kernel 2\n\n");
+      // printf(" Kernel 2\n\n");
       kernel = KERNEL2_MODE;
     }
     else if (strcmp(kernelStr, "kernel3") == 0)
     {
-      printf(" Kernel 3\n\n");
+      // printf(" Kernel 3\n\n");
       kernel = KERNEL3_MODE;
     }
     else
@@ -518,12 +524,12 @@ int runTest(const int argc, const char **argv)
   if (checkCmdLineFlag(argc, argv, "bytesperinstruction"))
     {
       bytes_per_inst =  getCmdLineArgumentInt(argc, argv, "bytesperinstruction");
-      printf("Using %d bytes per intruction\n", bytes_per_inst);
+      //printf("Using %d bytes per intruction\n", bytes_per_inst);
     }
     else {
-      bytes_per_inst = 4;
-      printf("Using default bytes_per_instruction: %d\n", bytes_per_inst);
+	bytes_per_inst = 4;
     }
+    //printf("Bytes_per_instruction: %d\n", bytes_per_inst);
   }
   
   
@@ -775,7 +781,10 @@ void testBandwidthShmoo(memcpyKind kind, printMode printmode,
       ((SHMOO_LIMIT_1MB - SHMOO_LIMIT_100KB) / SHMOO_INCREMENT_100KB) +
       ((SHMOO_LIMIT_16MB - SHMOO_LIMIT_1MB) / SHMOO_INCREMENT_1MB) +
       ((SHMOO_LIMIT_32MB - SHMOO_LIMIT_16MB) / SHMOO_INCREMENT_2MB) +
-      ((SHMOO_MEMSIZE_MAX - SHMOO_LIMIT_32MB) / SHMOO_INCREMENT_4MB);
+      ((SHMOO_LIMIT_64MB - SHMOO_LIMIT_32MB) / SHMOO_INCREMENT_4MB) +
+      ((SHMOO_LIMIT_128MB - SHMOO_LIMIT_64MB) / SHMOO_INCREMENT_8MB) +
+      ((SHMOO_LIMIT_256MB - SHMOO_LIMIT_128MB) / SHMOO_INCREMENT_13MB) +
+      ((SHMOO_MEMSIZE_MAX - SHMOO_LIMIT_256MB) / SHMOO_INCREMENT_25MB);
 
   unsigned int *memSizes = (unsigned int *)malloc(count * sizeof(unsigned int));
   double *bandwidths = (double *)malloc(count * sizeof(double));
@@ -822,9 +831,21 @@ void testBandwidthShmoo(memcpyKind kind, printMode printmode,
       {
         memSize += SHMOO_INCREMENT_2MB;
       }
-      else
+      else if (memSize < SHMOO_LIMIT_64MB)
       {
         memSize += SHMOO_INCREMENT_4MB;
+      }
+      else if (memSize < SHMOO_LIMIT_128MB)
+      {
+        memSize += SHMOO_INCREMENT_8MB;
+      }
+      else if (memSize < SHMOO_LIMIT_256MB)
+      {
+        memSize += SHMOO_INCREMENT_13MB;
+      }
+      else
+      {
+        memSize += SHMOO_INCREMENT_25MB;
       }
 
       memSizes[iteration] = memSize;
@@ -848,13 +869,13 @@ void testBandwidthShmoo(memcpyKind kind, printMode printmode,
       }
 
       iteration++;
-      printf(".");
+      //printf(".");
       fflush(0);
     }
   } // Complete the bandwidth computation on all the devices
 
   // print results
-  printf("\n");
+  //printf("\n");
 
   if (CSV == printmode)
   {
@@ -960,9 +981,8 @@ float testDeviceToHostTransfer(unsigned int memSize, memoryMode memMode,
          calculateKernelConfig(memSize, grid, block, transformKernel<int,MultiplyByTwo>);
          printf("Using new kernel");
          transformKernel<<<grid.x, block.x>>>(h_odata, d_idata, memSize, multiplyByTwo);
-      }
-      else {
-        printf("Running origianl");
+      } else {
+        // printf("Running origianl");
         checkCudaErrors(cudaMemcpyAsync(h_odata, d_idata, memSize,
                                       cudaMemcpyDeviceToHost, 0));
       }
@@ -1113,7 +1133,7 @@ float testHostToDeviceTransfer(unsigned int memSize, memoryMode memMode,
       }
       else
       {
-        printf("Using original");
+	//printf("Using original");
         checkCudaErrors(cudaMemcpyAsync(d_idata, h_odata, memSize,
                                         cudaMemcpyHostToDevice, 0));
       }
@@ -1343,6 +1363,15 @@ void printResultsCSV(unsigned int *memSizes, double *bandwidths,
       }
     }
   }
+  
+	if (mode == DEFAULT)
+		sConfig += "-cudaMemcpy";
+	else if (mode == KERNEL_MODE)
+		sConfig += "-kernel1";
+	else if (mode == KERNEL2_MODE)
+		sConfig += "-kernel2-" + std::to_string(bytes_per_inst) + "BPI";
+	else if (mode == KERNEL3_MODE)
+		sConfig += "-kernel3";
 
   unsigned int i;
   double dSeconds = 0.0;
