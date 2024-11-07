@@ -148,7 +148,7 @@ void printResultsReadable(unsigned int *memSizes, double *bandwidths,
                           memoryMode memMode, int iNumDevs, bool wc);
 void printResultsCSV(unsigned int *memSizes, double *bandwidths,
                      unsigned int count, memcpyKind kind, memoryMode memMode,
-                     int iNumDevs, bool wc);
+                     int iNumDevs, bool wc, kernelMode mode, int bytes_per_inst);
 void printHelp(void);
 
 template <typename KernelType>
@@ -747,7 +747,7 @@ void testBandwidthRange(unsigned int start, unsigned int end,
   if (printmode == CSV)
   {
     printResultsCSV(memSizes, bandwidths, count, kind, memMode,
-                    (1 + endDevice - startDevice), wc);
+                    (1 + endDevice - startDevice), wc, mode, bytes_per_inst);
   }
   else
   {
@@ -859,7 +859,7 @@ void testBandwidthShmoo(memcpyKind kind, printMode printmode,
   if (CSV == printmode)
   {
     printResultsCSV(memSizes, bandwidths, count, kind, memMode,
-                    (1 + endDevice - startDevice), wc);
+                    (1 + endDevice - startDevice), wc, mode, bytes_per_inst);
   }
   else
   {
@@ -1309,7 +1309,7 @@ void printResultsReadable(unsigned int *memSizes, double *bandwidths,
 ///////////////////////////////////////////////////////////////////////////
 void printResultsCSV(unsigned int *memSizes, double *bandwidths,
                      unsigned int count, memcpyKind kind, memoryMode memMode,
-                     int iNumDevs, bool wc)
+                     int iNumDevs, bool wc, kernelMode mode, int bytes_per_inst)
 {
   std::string sConfig;
 
@@ -1351,9 +1351,9 @@ void printResultsCSV(unsigned int *memSizes, double *bandwidths,
   {
     dSeconds = (double)memSizes[i] / (bandwidths[i] * (double)(1e9));
     printf(
-        "bandwidthTest-%s, Bandwidth = %.1f GB/s, Time = %.5f s, Size = %u "
+        "bandwidthTest-%s-kernel%d-bytesperinst%d, Bandwidth = %.1f GB/s, Time = %.5f s, Size = %u "
         "bytes, NumDevsUsed = %d\n",
-        sConfig.c_str(), bandwidths[i], dSeconds, memSizes[i], iNumDevs);
+        sConfig.c_str(), mode, bytes_per_inst, bandwidths[i], dSeconds, memSizes[i], iNumDevs);
   }
 }
 
