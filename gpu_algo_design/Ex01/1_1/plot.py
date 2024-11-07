@@ -41,12 +41,17 @@ fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 12), sharex=True, layout="tigh
 
 
 # Plot H2D and D2H data in the first axis
-for bytes_per_inst, group in df_h2d_d2h.groupby('Bytes per Inst'):
-    color = color_dict[int(bytes_per_inst)]  # Ensure bytes_per_inst is treated as an integer
-    for (transfer_type, operation), subgroup in group.groupby(['Transfer Type', 'Operation']):
-        marker = marker_dict[transfer_type] 
-        ax1.scatter(subgroup['Size (bytes)'], subgroup['Bandwidth (GB/s)'], alpha=0.5, color=color, marker=marker ,
+for (transfer_type, operation), group in df_h2d_d2h.groupby(['Transfer Type', 'Operation']):
+    marker = marker_dict[transfer_type] 
+    for bytes_per_inst, subgroup in group.groupby('Bytes per Inst'):
+        color = color_dict[int(bytes_per_inst)]  # Ensure bytes_per_inst is treated as an integer
+        if 'cudaMemcpy' in operation:
+            ax1.scatter(subgroup['Size (bytes)'], subgroup['Bandwidth (GB/s)'], alpha=0.5, color='darkolivegreen', marker=marker ,
+                    label=f'{transfer_type}-{operation}')
+        else:
+            ax1.scatter(subgroup['Size (bytes)'], subgroup['Bandwidth (GB/s)'], alpha=0.5, color=color, marker=marker ,
                     label=f'{transfer_type}-{operation}-BytesPerInst={bytes_per_inst}')
+
 
 # Plot H2D and D2H data in the first axis
 # for bytes_per_inst, group in df_h2d_d2h.groupby('Bytes per Inst'):
@@ -66,7 +71,11 @@ ax1.grid(True)
 for bytes_per_inst, group in df_d2d.groupby('Bytes per Inst'):
     color = color_dict[int(bytes_per_inst)]  # Ensure bytes_per_inst is treated as an integer
     for (transfer_type, operation), subgroup in group.groupby(['Transfer Type', 'Operation']):
-        ax2.scatter(subgroup['Size (bytes)'], subgroup['Bandwidth (GB/s)'], alpha=0.5, color=color,
+        if 'cudaMemcpy' in operation:
+            ax2.scatter(subgroup['Size (bytes)'], subgroup['Bandwidth (GB/s)'], alpha=0.5, color='darkolivegreen',
+                    label=f'{transfer_type}-{operation}')
+        else:
+           ax2.scatter(subgroup['Size (bytes)'], subgroup['Bandwidth (GB/s)'], alpha=0.5, color=color,
                     label=f'{transfer_type}-{operation}-BytesPerInst={bytes_per_inst}')
 
 ax2.set_title('Memory Copy Throughput (D2D)', fontsize=18)
