@@ -50,6 +50,8 @@
 
 static const char *sSDKsample = "CUDA Bandwidth Test";
 
+#define DEBUG
+
 // defines, project
 #define MEMCOPY_ITERATIONS 1
 #define DEFAULT_SIZE (32 * (1e6))     // 32 M
@@ -81,7 +83,7 @@ static const char *sSDKsample = "CUDA Bandwidth Test";
 #define SHMOO_LIMIT_256MB (256 * 1e6)         // 256 MB
 
 // CPU cache flush
-#define FLUSH_SIZE (256 * 1024 * 1024)
+#define FLUSH_SIZE (512 * 1024 * 1024)
 char *flush_buf;
 
 // enums, project
@@ -168,8 +170,9 @@ void calculateKernelConfig(int numElements, dim3 &grid, dim3 &block, KernelType 
   grid.x = (numElements + blockSize - 1) / blockSize;
   block.x = blockSize;
   // Calculated Kernel Launch Configuration
-  //printf("Kernel Launch Configuration ");
-  //printf("Grid Size: %d, Block Size: %d", grid.x, block.x);
+#ifdef DEBUG
+  printf("Kernel launch config: Grid Size: %d, Block Size: %d\n", grid.x, block.x);
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -206,8 +209,8 @@ __global__ void copyKernel2(const T *__restrict__ in,
          element_idx < (idx + 1) * (bytes_per_inst * inst_per_thread);
          element_idx += bytes_per_inst)
     {
-      auto lower_border = idx * (bytes_per_inst * inst_per_thread);
-      auto upper_border = (idx + 1) * (bytes_per_inst * inst_per_thread);
+      // auto lower_border = idx * (bytes_per_inst * inst_per_thread);
+      // auto upper_border = (idx + 1) * (bytes_per_inst * inst_per_thread);
       //printf("thread_id %d, element_idx: %d, lower_border: %d, upper_border: %d\n", threadIdx.x, element_idx, lower_border, upper_border);
       switch (bytes_per_inst)
       {
@@ -233,7 +236,7 @@ __global__ void copyKernel2(const T *__restrict__ in,
         }
         break;
       default:
-        cudaError_t error = cudaErrorInvalidValue;
+        // cudaError_t error = cudaErrorInvalidValue;
         break;
       }
     }
@@ -285,7 +288,9 @@ int main(int argc, char **argv)
   flush_buf = (char *)malloc(FLUSH_SIZE);
 
   // set logfile name and start logs
-  // printf("[%s] - Starting...\n", sSDKsample);
+#ifdef DEBUG
+  printf("[%s] - Starting...\n", sSDKsample);
+#endif
 
   int iRetVal = runTest(argc, (const char **)argv);
 
@@ -295,7 +300,9 @@ int main(int argc, char **argv)
   }
 
   // finish
-  // printf("%s\n", (iRetVal == 0) ? "Result = PASS" : "Result = FAIL");
+#ifdef DEBUG
+  printf("%s\n", (iRetVal == 0) ? "Result = PASS" : "Result = FAIL");
+#endif
 
   // printf(
   //     "\nNOTE: The CUDA Samples are not meant for performance measurements. "
@@ -417,7 +424,9 @@ int runTest(const int argc, const char **argv)
 
     if (error_id == cudaSuccess)
     {
-      //printf(" Device %d: %s\n", currentDevice, deviceProp.name);
+#ifdef DEBUG
+      printf(" Device %d: %s\n", currentDevice, deviceProp.name);
+#endif
 
       if (deviceProp.computeMode == cudaComputeModeProhibited)
       {
@@ -444,17 +453,23 @@ int runTest(const int argc, const char **argv)
     // figure out the mode
     if (strcmp(modeStr, "quick") == 0)
     {
-      //printf(" Quick Mode\n\n");
+#ifdef DEBUG
+      printf(" Quick Mode\n\n");
+#endif
       mode = QUICK_MODE;
     }
     else if (strcmp(modeStr, "shmoo") == 0)
     {
-      //printf(" Shmoo Mode\n\n");
+#ifdef DEBUG
+      printf(" Shmoo Mode\n\n");
+#endif
       mode = SHMOO_MODE;
     }
     else if (strcmp(modeStr, "range") == 0)
     {
-      //printf(" Range Mode\n\n");
+#ifdef DEBUG
+      printf(" Range Mode\n\n");
+#endif
       mode = RANGE_MODE;
     }
     else
@@ -475,17 +490,23 @@ int runTest(const int argc, const char **argv)
   {
     if (strcmp(kernelStr, "kernel1") == 0)
     {
-      // printf(" Kernel 1\n\n");
+#ifdef DEBUG
+      printf(" Kernel 1\n\n");
+#endif
       kernel = KERNEL_MODE;
     }
     else if (strcmp(kernelStr, "kernel2") == 0)
     {
-      // printf(" Kernel 2\n\n");
+#ifdef DEBUG
+      printf(" Kernel 2\n\n");
+#endif
       kernel = KERNEL2_MODE;
     }
     else if (strcmp(kernelStr, "kernel3") == 0)
     {
-      // printf(" Kernel 3\n\n");
+#ifdef DEBUG
+      printf(" Kernel 3\n\n");
+#endif
       kernel = KERNEL3_MODE;
     }
     else
@@ -504,7 +525,9 @@ int runTest(const int argc, const char **argv)
     else {
     bytes_per_inst = 4;
     }
-    //printf("Bytes_per_instruction: %d\n", bytes_per_inst);
+#ifdef DEBUG
+    printf("Bytes_per_instruction: %d\n", bytes_per_inst);
+#endif
   }
 
   if (kernel == KERNEL3_MODE) {
