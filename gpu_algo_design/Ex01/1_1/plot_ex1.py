@@ -5,14 +5,14 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # Regex to extract relevant data
-pattern = r"bandwidthTest-(H2D-Pinned|D2D|D2H-Pinned)-(cudaMemcpy|kernel1|kernel2-(\d+)BPI), Bandwidth = ([\d.]+) GB/s, Time = ([\d.]+) s, Size = (\d+) bytes"
+pattern = r"bandwidthTest-(H2D-Pinned|D2D|D2H-Pinned)-(cudaMemcpy|kernel1), Bandwidth = ([\d.]+) GB/s, Time = ([\d.]+) s, Size = (\d+) bytes"
 
 with open("ex1_results.txt", "r") as f:
     data = f.read()
 
 # Extract data
 matches = re.findall(pattern, data)
-performance_data = [(transfer_type, operation, bpi, float(bw), float(time), int(size)) for transfer_type, operation, bpi, bw, time, size in matches]
+performance_data = [(transfer_type, operation, float(bw), float(time), int(size)) for transfer_type, operation, bw, time, size in matches]
 
 # Create DataFrame
 df = pd.DataFrame(performance_data, columns=['Transfer Type', 'Operation', 'Bandwidth (GB/s)', 'Time (s)', 'Size (bytes)'])
