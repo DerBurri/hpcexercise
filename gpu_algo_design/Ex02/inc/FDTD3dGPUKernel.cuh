@@ -31,10 +31,11 @@
 namespace cg = cooperative_groups;
 
 // Note: If you change the RADIUS, you should also change the unrolling below
-#define RADIUS 4
+// #define RADIUS 4
 
-__constant__ float stencil[RADIUS + 1];
+__constant__ float stencil[10 + 1];
 
+template <int RADIUS>
 __global__ void FiniteDifferencesKernel(float *output, const float *input,
                                         const int dimx, const int dimy,
                                         const int dimz) {

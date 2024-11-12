@@ -91,12 +91,6 @@ bool fdtdGPU(float *output, const float *input, const float *coeff,
 
 #endif
 
-  // Check the radius is valid
-  if (radius != RADIUS) {
-    printf("radius is invalid, must be %d - see kernel for details.\n", RADIUS);
-    exit(EXIT_FAILURE);
-  }
-
   // Get the number of CUDA enabled GPU devices
   checkCudaErrors(cudaGetDeviceCount(&deviceCount));
 
@@ -127,7 +121,24 @@ bool fdtdGPU(float *output, const float *input, const float *coeff,
 
   // Check the device limit on the number of threads
   struct cudaFuncAttributes funcAttrib;
-  checkCudaErrors(cudaFuncGetAttributes(&funcAttrib, FiniteDifferencesKernel));
+
+#define CHECK_KERNEL(n) case n:  checkCudaErrors(cudaFuncGetAttributes(&funcAttrib, FiniteDifferencesKernel<n>)); break;
+
+    switch (radius) {
+            CHECK_KERNEL(1)
+            CHECK_KERNEL(2)
+            CHECK_KERNEL(3)
+            CHECK_KERNEL(4)
+            CHECK_KERNEL(5)
+            CHECK_KERNEL(6)
+            CHECK_KERNEL(7)
+            CHECK_KERNEL(8)
+            CHECK_KERNEL(9)
+            CHECK_KERNEL(10)
+            default:
+                    std::cerr << "Radius must be between 1 and 10." << std::endl;
+                    exit(EXIT_FAILURE);
+    }
 
   userBlockSize = MIN(userBlockSize, funcAttrib.maxThreadsPerBlock);
 
@@ -145,9 +156,9 @@ bool fdtdGPU(float *output, const float *input, const float *coeff,
   printf(" set grid size to %dx%d\n", dimGrid.x, dimGrid.y);
 
   // Check the block size is valid
-  if (dimBlock.x < RADIUS || dimBlock.y < RADIUS) {
+  if (dimBlock.x < radius || dimBlock.y < radius) {
     printf("invalid block size, x (%d) and y (%d) must be >= radius (%d).\n",
-           dimBlock.x, dimBlock.y, RADIUS);
+           dimBlock.x, dimBlock.y, radius);
     exit(EXIT_FAILURE);
   }
 
@@ -188,8 +199,24 @@ bool fdtdGPU(float *output, const float *input, const float *coeff,
 
     // Launch the kernel
     printf("launch kernel\n");
-    FiniteDifferencesKernel<<<dimGrid, dimBlock>>>(bufferDst, bufferSrc, dimx,
-                                                   dimy, dimz);
+
+#define CALL_KERNEL(n) case n:  FiniteDifferencesKernel<n><<<dimGrid, dimBlock>>>(bufferDst, bufferSrc, dimx, dimy, dimz); break;
+
+    switch (radius) {
+            CALL_KERNEL(1)
+            CALL_KERNEL(2)
+            CALL_KERNEL(3)
+            CALL_KERNEL(4)
+            CALL_KERNEL(5)
+            CALL_KERNEL(6)
+            CALL_KERNEL(7)
+            CALL_KERNEL(8)
+            CALL_KERNEL(9)
+            CALL_KERNEL(10)
+            default:
+                    std::cerr << "Radius must be between 1 and 10." << std::endl;
+                    exit(EXIT_FAILURE);
+    }
 
     // Toggle the buffers
     // Visual Studio 2005 does not like std::swap

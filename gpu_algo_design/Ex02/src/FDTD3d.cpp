@@ -272,7 +272,7 @@ bool runTest(int argc, const char **argv) {
 
   // Execute on the device
   printf("fdtdGPU...\n");
-  fdtdGPU(device_output, input, coeff, dimx, dimy, dimz, radius, timesteps,
+  fdtdGPU(device_output, input, coeff, dimx, dimy, dimz, radius, timesteps, 
           argc, argv);
   printf("fdtdGPU complete\n");
 
