@@ -1,0 +1,22 @@
+break /shares/zitipoolhome/mi312/UNIWS24-GPUA/UNIWS24-GPUA-Exercises/02/src/FDTD3dGPU.cu:259
+
+p dimGrid
+p dimBluck 
+p output 
+p input 
+p dimx 
+p dimy 
+p dimz
+
+break /shares/zitipoolhome/mi312/UNIWS24-GPUA/UNIWS24-GPUA-Exercises/02/src/FDTD3dGPU.cu:314
+
+break /shares/zitipoolhome/mi312/UNIWS24-GPUA/UNIWS24-GPUA-Exercises/02/inc/FDTD3dGPUKernel.cuh:150
+
+
+--demangle full --destroy-on-device-error context --force-blocking-launches --tool memcheck --check-cache-control --leak-check full --report-api-errors all --xml --save dbg-mem.txt
+
+--demangle full --destroy-on-device-error context --force-blocking-launches --tool racecheck --xml --save dbg-race.txt
+
+--demangle full --destroy-on-device-error context --force-blocking-launches --tool synccheck --xml --save dbg-sync.txt
+
+--demangle full --destroy-on-device-error context --force-blocking-launches --tool initcheck --xml --save dbg-init.txt
