@@ -34,6 +34,8 @@
 
 #include "FDTD3dGPUKernel.cuh"
 
+#define GPU_PROFILING
+
 bool getTargetDeviceGlobalMemSize(memsize_t *result, const int argc,
                                   const char **argv) {
   int deviceCount = 0;
@@ -258,9 +260,9 @@ bool fdtdGPU(float *output, const float *input, const float *coeff,
     // Determine throughput
     double throughputM = 1.0e-6 * (double)pointsComputed / avgElapsedTime;
     printf(
-        "FDTD3d, Throughput = %.4f MPoints/s, Time = %.5f s, Size = %u Points, "
+        "FDTD3d-radius%d, Throughput = %.4f MPoints/s, Time = %.5f s, Size = %u Points, "
         "NumDevsUsed = %u, Blocksize = %u\n",
-        throughputM, avgElapsedTime, pointsComputed, 1,
+        radius, throughputM, avgElapsedTime, pointsComputed, 1,
         dimBlock.x * dimBlock.y);
   }
 

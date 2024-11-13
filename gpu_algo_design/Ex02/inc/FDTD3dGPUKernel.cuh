@@ -30,9 +30,6 @@
 
 namespace cg = cooperative_groups;
 
-// Note: If you change the RADIUS, you should also change the unrolling below
-// #define RADIUS 4
-
 __constant__ float stencil[10 + 1];
 
 template <int RADIUS>
@@ -102,8 +99,8 @@ __global__ void FiniteDifferencesKernel(float *output, const float *input,
 
     behind[0] = current;
     current = infront[0];
-#pragma unroll 4
 
+#pragma unroll RADIUS
     for (int i = 0; i < RADIUS - 1; i++) infront[i] = infront[i + 1];
 
     if (validr) infront[RADIUS - 1] = input[inputIndex];
@@ -137,8 +134,8 @@ __global__ void FiniteDifferencesKernel(float *output, const float *input,
 
     // Compute the output value
     float value = stencil[0] * current;
-#pragma unroll 4
 
+#pragma unroll RADIUS
     for (int i = 1; i <= RADIUS; i++) {
       value +=
           stencil[i] * (infront[i - 1] + behind[i - 1] + tile[ty - i][tx] +

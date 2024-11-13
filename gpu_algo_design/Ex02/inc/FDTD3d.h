@@ -39,8 +39,8 @@
 // Note that the radius is defined here as exactly 4 since the
 // kernel code uses a constant. If you want a different radius
 // you must change the kernel accordingly.
-#define k_radius_min 4
-#define k_radius_max 4
+#define k_radius_min 1
+#define k_radius_max 10
 #define k_radius_default 4
 
 // The values are set to give reasonable runtimes, they can

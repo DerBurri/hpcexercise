@@ -279,6 +279,13 @@ bool runTest(int argc, const char **argv) {
   // Compare the results
   float tolerance = 0.0001f;
   printf("\nCompareData (tolerance %f)...\n", tolerance);
-  return compareData(device_output, host_output, dimx, dimy, dimz, radius,
-                     tolerance);
+  bool comparison_result = false;
+  comparison_result = compareData(device_output, host_output, dimx, dimy, dimz, radius, tolerance);
+
+  if (comparison_result)
+          printf("Results MATCH!\n\n");
+  else
+          printf("Results MISMATCH!\n\n");
+  
+  return comparison_result;
 }
