@@ -73,6 +73,8 @@ void showHelp(const int argc, const char **argv) {
 
   std::cout << std::endl << "Syntax:" << std::endl;
   std::cout << std::left;
+  std::cout << "    " << std::setw(20) << "--caching=<input|output>"
+            << "Specify caching mode for device memory" << std::endl;
   std::cout << "    " << std::setw(20) << "--device=<device>"
             << "Specify device to use for execution" << std::endl;
   std::cout << "    " << std::setw(20) << "--dimx=<N>"
@@ -137,6 +139,7 @@ bool runTest(int argc, const char **argv) {
   memsize_t memsize;
   bool defineHalo;
   bool verboseOutput;
+  bool outputCaching;
 
   const float defaultHaloValue = 32.0f;
   const float lowerBound = 0.0f;
@@ -191,6 +194,21 @@ bool runTest(int argc, const char **argv) {
   radius = k_radius_default;
   timesteps = k_timesteps_default;
 
+  //Check Caching Mode
+  if (checkCmdLineFlag(argc, argv, "caching")) {
+    char *caching;
+    getCmdLineArgumentString(argc, argv, "caching", &caching);
+    if (strcmp(caching, "input") == 0) {
+      outputCaching = false;
+    } else if (strcmp(caching, "output") == 0) {
+      outputCaching = true;
+    } else {
+      printf("Invalid caching mode - using default (input caching)\n");
+      outputCaching = false;
+    }
+  } else {
+    outputCaching = false;
+  }
   // Parse command line arguments
   if (checkCmdLineFlag(argc, argv, "dimx")) {
     dimx =
@@ -230,6 +248,7 @@ bool runTest(int argc, const char **argv) {
   std::cout << "Set y dim: " << dimy << std::endl;
   std::cout << "Set z dim: " << dimz << std::endl;
   std::cout << "Set radius: " << radius << std::endl;
+  std::cout << "Using Output Caching: " << outputCaching << std::endl;
 
   // Determine volume size
   outerDimx = dimx + 2 * radius;
@@ -264,7 +283,11 @@ bool runTest(int argc, const char **argv) {
 
   // Execute on the host
   printf("fdtdReference...\n");
-  fdtdReference(host_output, input, coeff, dimx, dimy, dimz, radius, timesteps);
+  if (outputCaching) {
+    fdtdReference(host_output, input, coeff, dimx, dimy, dimz, radius, timesteps);
+  } else {
+    fdtdReference(host_output, input, coeff, dimx, dimy, dimz, radius, timesteps);
+  }
   printf("fdtdReference complete\n");
 
   // Allocate memory
@@ -273,7 +296,7 @@ bool runTest(int argc, const char **argv) {
   // Execute on the device
   printf("fdtdGPU...\n");
   fdtdGPU(device_output, input, coeff, dimx, dimy, dimz, radius, timesteps, 
-          argc, argv);
+          argc, argv, outputCaching);
   printf("fdtdGPU complete\n");
 
   // Compare the results

@@ -63,7 +63,7 @@ bool getTargetDeviceGlobalMemSize(memsize_t *result, const int argc,
 
 bool fdtdGPU(float *output, const float *input, const float *coeff,
              const int dimx, const int dimy, const int dimz, const int radius,
-             const int timesteps, const int argc, const char **argv) {
+             const int timesteps, const int argc, const char **argv, bool outputCaching) {
   const int outerDimx = dimx + 2 * radius;
   const int outerDimy = dimy + 2 * radius;
   const int outerDimz = dimz + 2 * radius;
@@ -124,23 +124,42 @@ bool fdtdGPU(float *output, const float *input, const float *coeff,
   // Check the device limit on the number of threads
   struct cudaFuncAttributes funcAttrib;
 
-#define CHECK_KERNEL(n) case n:  checkCudaErrors(cudaFuncGetAttributes(&funcAttrib, FiniteDifferencesKernel<n>)); break;
+#define CHECK_KERNEL_INPUT(n) case n:  checkCudaErrors(cudaFuncGetAttributes(&funcAttrib, FiniteDifferencesKernel<n>)); break;
+#define CHECK_KERNEL_OUTPUT(n) case n:  checkCudaErrors(cudaFuncGetAttributes(&funcAttrib, FiniteDifferences3DBoxKernel<n>)); break;
 
+if (outputCaching) {
     switch (radius) {
-            CHECK_KERNEL(1)
-            CHECK_KERNEL(2)
-            CHECK_KERNEL(3)
-            CHECK_KERNEL(4)
-            CHECK_KERNEL(5)
-            CHECK_KERNEL(6)
-            CHECK_KERNEL(7)
-            CHECK_KERNEL(8)
-            CHECK_KERNEL(9)
-            CHECK_KERNEL(10)
+            CHECK_KERNEL_OUTPUT(1)
+            CHECK_KERNEL_OUTPUT(2)
+            CHECK_KERNEL_OUTPUT(3)
+            CHECK_KERNEL_OUTPUT(4)
+            CHECK_KERNEL_OUTPUT(5)
+            CHECK_KERNEL_OUTPUT(6)
+            CHECK_KERNEL_OUTPUT(7)
+            CHECK_KERNEL_OUTPUT(8)
+            CHECK_KERNEL_OUTPUT(9)
+            CHECK_KERNEL_OUTPUT(10)
             default:
                     std::cerr << "Radius must be between 1 and 10." << std::endl;
                     exit(EXIT_FAILURE);
     }
+} else {
+    switch (radius) {
+            CHECK_KERNEL_INPUT(1)
+            CHECK_KERNEL_INPUT(2)
+            CHECK_KERNEL_INPUT(3)
+            CHECK_KERNEL_INPUT(4)
+            CHECK_KERNEL_INPUT(5)
+            CHECK_KERNEL_INPUT(6)
+            CHECK_KERNEL_INPUT(7)
+            CHECK_KERNEL_INPUT(8)
+            CHECK_KERNEL_INPUT(9)
+            CHECK_KERNEL_INPUT(10)
+            default:
+                    std::cerr << "Radius must be between 1 and 10." << std::endl;
+                    exit(EXIT_FAILURE);
+    }
+}
 
   userBlockSize = MIN(userBlockSize, funcAttrib.maxThreadsPerBlock);
 
@@ -202,24 +221,43 @@ bool fdtdGPU(float *output, const float *input, const float *coeff,
     // Launch the kernel
     printf("launch kernel\n");
 
-#define CALL_KERNEL(n) case n:  FiniteDifferencesKernel<n><<<dimGrid, dimBlock>>>(bufferDst, bufferSrc, dimx, dimy, dimz); break;
+#define CALL_KERNEL_INPUT(n) case n:  FiniteDifferencesKernel<n><<<dimGrid, dimBlock>>>(bufferDst, bufferSrc, dimx, dimy, dimz); break;
+#define CALL_KERNEL_OUTPUT(n) case n:  FiniteDifferences3DBoxKernel<n><<<dimGrid, dimBlock>>>(bufferDst, bufferSrc, dimx, dimy, dimz); break;
 
+if (outputCaching) {
     switch (radius) {
-            CALL_KERNEL(1)
-            CALL_KERNEL(2)
-            CALL_KERNEL(3)
-            CALL_KERNEL(4)
-            CALL_KERNEL(5)
-            CALL_KERNEL(6)
-            CALL_KERNEL(7)
-            CALL_KERNEL(8)
-            CALL_KERNEL(9)
-            CALL_KERNEL(10)
+            CALL_KERNEL_OUTPUT(1)
+            CALL_KERNEL_OUTPUT(2)
+            CALL_KERNEL_OUTPUT(3)
+            CALL_KERNEL_OUTPUT(4)
+            CALL_KERNEL_OUTPUT(5)
+            CALL_KERNEL_OUTPUT(6)
+            CALL_KERNEL_OUTPUT(7)
+            CALL_KERNEL_OUTPUT(8)
+            CALL_KERNEL_OUTPUT(9)
+            CALL_KERNEL_OUTPUT(10)
             default:
                     std::cerr << "Radius must be between 1 and 10." << std::endl;
                     exit(EXIT_FAILURE);
     }
-
+}
+else {
+    switch (radius) {
+            CALL_KERNEL_INPUT(1)
+            CALL_KERNEL_INPUT(2)
+            CALL_KERNEL_INPUT(3)
+            CALL_KERNEL_INPUT(4)
+            CALL_KERNEL_INPUT(5)
+            CALL_KERNEL_INPUT(6)
+            CALL_KERNEL_INPUT(7)
+            CALL_KERNEL_INPUT(8)
+            CALL_KERNEL_INPUT(9)
+            CALL_KERNEL_INPUT(10)
+            default:
+                    std::cerr << "Radius must be between 1 and 10." << std::endl;
+                    exit(EXIT_FAILURE);
+    }
+}
     // Toggle the buffers
     // Visual Studio 2005 does not like std::swap
     //    std::swap<float *>(bufferSrc, bufferDst);
