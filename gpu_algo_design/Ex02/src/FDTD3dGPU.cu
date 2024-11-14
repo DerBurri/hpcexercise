@@ -225,6 +225,19 @@ bool fdtdGPU(float *output, const float *input, const float *coeff,
   size_t pointsComputed = dimx * dimy * dimz;
 
   for (int meas_it = 0; meas_it < I_BENCHMARK; meas_it++) {
+  // renew data for iteration
+  // Copy the input to the device input buffer
+  checkCudaErrors(cudaMemcpy(bufferIn + padding, input,
+                             volumeSize * sizeof(float),
+                             cudaMemcpyHostToDevice));
+
+  // Copy the input to the device output buffer (actually only need the halo)
+  checkCudaErrors(cudaMemcpy(bufferOut + padding, input,
+                             volumeSize * sizeof(float),
+                             cudaMemcpyHostToDevice));
+  bufferSrc = bufferIn + padding;
+  bufferDst = bufferOut + padding;
+
 
 #ifdef GPU_PROFILING
     checkCudaErrors(cudaEventRecord(profileStart, 0));
