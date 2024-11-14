@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #SBATCH --job-name=fdtd3d
-#SBATCH --output=/media/oldhome/mburr/hpcexercise/gpu_algo_design/Ex02/out/test_fdtd3d_%j.log
+#SBATCH --output=fdtd3d-%j.out
 ##SBATCH --partition=asccluster
 #SBATCH --gres=gpu:rtx_4080:1
 #SBATCH --ntasks=16

@@ -27,19 +27,22 @@
 
 #include "FDTD3d.h"
 
-#include <iostream>
-#include <iomanip>
-
-#include "FDTD3dReference.h"
-#include "FDTD3dGPU.h"
-
-#include <helper_functions.h>
-
-#include <math.h>
 #include <assert.h>
+#include <helper_functions.h>
+#include <math.h>
+
+#include <iomanip>
+#include <iostream>
+
+#include "FDTD3dGPU.h"
+#include "FDTD3dReference.h"
 
 #ifndef CLAMP
 #define CLAMP(a, min, max) (MIN(max, MAX(a, min)))
+#endif
+
+#ifndef I_BENCHMARK
+#define I_BENCHMARK 100
 #endif
 
 //// Name of the log file
@@ -103,14 +106,13 @@ void showHelp(const int argc, const char **argv) {
 }
 
 void printStructure(float *data, const int dimx, const int dimy,
-                        const int dimz) {
+                    const int dimz) {
   for (int iz = 0; iz < dimz; iz++) {
-    std:: cout << "Layer " << iz << std::endl;
+    std::cout << "Layer " << iz << std::endl;
     for (int iy = 0; iy < dimy; iy++) {
       for (int ix = 0; ix < dimx; ix++) {
+        std::cout << " " << *data;
 
-	std::cout << " " << *data;
-	
         ++data;
       }
       std::cout << std::endl;
@@ -194,7 +196,7 @@ bool runTest(int argc, const char **argv) {
   radius = k_radius_default;
   timesteps = k_timesteps_default;
 
-  //Check Caching Mode
+  // Check Caching Mode
   if (checkCmdLineFlag(argc, argv, "caching")) {
     char *caching;
     getCmdLineArgumentString(argc, argv, "caching", &caching);
@@ -236,12 +238,12 @@ bool runTest(int argc, const char **argv) {
   }
 
   if (checkCmdLineFlag(argc, argv, "halo")) {
-	globalHaloValue = getCmdLineArgumentInt(argc, argv, "halo");
-	defineHalo = true;
+    globalHaloValue = getCmdLineArgumentInt(argc, argv, "halo");
+    defineHalo = true;
   }
 
   if (checkCmdLineFlag(argc, (const char **)argv, "verbose")) {
-	verboseOutput = true;
+    verboseOutput = true;
   }
 
   std::cout << "Set x dim: " << dimx << std::endl;
@@ -284,9 +286,11 @@ bool runTest(int argc, const char **argv) {
   // Execute on the host
   printf("fdtdReference...\n");
   if (outputCaching) {
-    fdtdReference(host_output, input, coeff, dimx, dimy, dimz, radius, timesteps);
+    fdtdReference(host_output, input, coeff, dimx, dimy, dimz, radius,
+                  timesteps);
   } else {
-    fdtdReference(host_output, input, coeff, dimx, dimy, dimz, radius, timesteps);
+    fdtdReference(host_output, input, coeff, dimx, dimy, dimz, radius,
+                  timesteps);
   }
   printf("fdtdReference complete\n");
 
@@ -295,7 +299,7 @@ bool runTest(int argc, const char **argv) {
 
   // Execute on the device
   printf("fdtdGPU...\n");
-  fdtdGPU(device_output, input, coeff, dimx, dimy, dimz, radius, timesteps, 
+  fdtdGPU(device_output, input, coeff, dimx, dimy, dimz, radius, timesteps,
           argc, argv, outputCaching);
   printf("fdtdGPU complete\n");
 
@@ -303,12 +307,13 @@ bool runTest(int argc, const char **argv) {
   float tolerance = 0.0001f;
   printf("\nCompareData (tolerance %f)...\n", tolerance);
   bool comparison_result = false;
-  comparison_result = compareData(device_output, host_output, dimx, dimy, dimz, radius, tolerance);
+  comparison_result = compareData(device_output, host_output, dimx, dimy, dimz,
+                                  radius, tolerance);
 
   if (comparison_result)
-          printf("Results MATCH!\n\n");
+    printf("Results MATCH!\n\n");
   else
-          printf("Results MISMATCH!\n\n");
-  
+    printf("Results MISMATCH!\n\n");
+
   return comparison_result;
 }
