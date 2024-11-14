@@ -225,3 +225,5 @@ __global__ void FiniteDifferences3DBoxKernel(float *output, const float *input,
     output[outputIndex] = cache[ltidz][ltidy][ltidx];
   }
 }
+
+__global__ void emptyKernel() {}

@@ -41,10 +41,6 @@
 #define CLAMP(a, min, max) (MIN(max, MAX(a, min)))
 #endif
 
-#ifndef I_BENCHMARK
-#define I_BENCHMARK 100
-#endif
-
 //// Name of the log file
 // const char *printfFile = "FDTD3d.txt";
 
@@ -295,8 +291,8 @@ bool runTest(int argc, const char **argv) {
     fdtdReference(host_output, input, coeff, dimx, dimy, dimz, radius,
                   timesteps);
   } else {
-    //TODO no real reference 
-    fdtdReference(host_output, input, coeff, dimx, dimy, dimz, radius,
+    // Not implemented
+    //fdtdReference(host_output, input, coeff, dimx, dimy, dimz, radius,
                   timesteps);
   }
   printf("fdtdReference complete\n");
