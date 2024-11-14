@@ -281,13 +281,8 @@ bool runTest(int argc, const char **argv) {
 
   // Execute on the host
   printf("fdtdReference...\n");
-  if (outputCaching) {
-    fdtdReference(host_output, input, coeff, dimx, dimy, dimz, radius,
-                  timesteps);
-  } else {
-    fdtdReference(host_output, input, coeff, dimx, dimy, dimz, radius,
-                  timesteps);
-  }
+  fdtdReference(host_output, input, coeff, dimx, dimy, dimz, radius,
+                timesteps);
   printf("fdtdReference complete\n");
 
   // Allocate memory

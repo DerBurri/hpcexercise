@@ -196,16 +196,6 @@ bool fdtdGPU(float *output, const float *input, const float *coeff,
     exit(EXIT_FAILURE);
   }
 
-  // Copy the input to the device input buffer
-  checkCudaErrors(cudaMemcpy(bufferIn + padding, input,
-                             volumeSize * sizeof(float),
-                             cudaMemcpyHostToDevice));
-
-  // Copy the input to the device output buffer (actually only need the halo)
-  checkCudaErrors(cudaMemcpy(bufferOut + padding, input,
-                             volumeSize * sizeof(float),
-                             cudaMemcpyHostToDevice));
-
   // Copy the coefficients to the device coefficient buffer
   checkCudaErrors(
       cudaMemcpyToSymbol(stencil, (void *)coeff, (radius + 1) * sizeof(float)));
@@ -216,28 +206,28 @@ bool fdtdGPU(float *output, const float *input, const float *coeff,
   checkCudaErrors(cudaEventCreate(&profileEnd));
 #endif
 
-  // Execute the FDTD
-  float *bufferSrc = bufferIn + padding;
-  float *bufferDst = bufferOut + padding;
-
   double throughputSum = 0;
   double avgElapsedTimeSum = 0;
   size_t pointsComputed = dimx * dimy * dimz;
 
   for (int meas_it = 0; meas_it < I_BENCHMARK; meas_it++) {
-  // renew data for iteration
-  // Copy the input to the device input buffer
-  checkCudaErrors(cudaMemcpy(bufferIn + padding, input,
-                             volumeSize * sizeof(float),
-                             cudaMemcpyHostToDevice));
+    // Copy the input to the device input buffer
+    checkCudaErrors(cudaMemcpy(bufferIn + padding, input,
+                               volumeSize * sizeof(float),
+                               cudaMemcpyHostToDevice));
 
-  // Copy the input to the device output buffer (actually only need the halo)
-  checkCudaErrors(cudaMemcpy(bufferOut + padding, input,
-                             volumeSize * sizeof(float),
-                             cudaMemcpyHostToDevice));
-  bufferSrc = bufferIn + padding;
-  bufferDst = bufferOut + padding;
+    // Copy the input to the device output buffer (actually only need the halo)
+    checkCudaErrors(cudaMemcpy(bufferOut + padding, input,
+                               volumeSize * sizeof(float),
+                               cudaMemcpyHostToDevice));
 
+    // Renew data
+    float *bufferSrc = bufferIn + padding;
+    float *bufferDst = bufferOut + padding;
+
+    // Warmup kernel
+    emptyKernel<<<1,1>>>();
+    checkCudaErrors(cudaDeviceSynchronize());
 
 #ifdef GPU_PROFILING
     checkCudaErrors(cudaEventRecord(profileStart, 0));
