@@ -171,6 +171,7 @@ __global__ void FiniteDifferences3DBoxKernel(float *output, const float *input,
   const int ltidx = threadIdx.x;
   const int ltidy = threadIdx.y;
   const int ltidz = threadIdx.z;
+  float value = 0.0f;
 
   // Shared memory to cache the output
   __shared__ float cache[k_blockDimMaxZ][k_blockDimMaxY][k_blockDimX];
@@ -188,9 +189,9 @@ __global__ void FiniteDifferences3DBoxKernel(float *output, const float *input,
   // Bounds checking
   if ((gtidx >= dimx) || (gtidy >= dimy) || (gtidz >= dimz)) validw = false;
 
+  
   // Compute stencil directly from global memory without caching input
   if (validw) {
-    float value = 0.0f;
     int stencil_idx = 0;
 
     // Full 3D box stencil computation
@@ -213,7 +214,6 @@ __global__ void FiniteDifferences3DBoxKernel(float *output, const float *input,
         }
       }
     }
-
     // Cache the output value in shared memory
     cache[ltidz][ltidy][ltidx] = value;
   }

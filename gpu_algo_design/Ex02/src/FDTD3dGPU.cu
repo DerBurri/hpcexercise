@@ -201,11 +201,18 @@ bool fdtdGPU(float *output, const float *input, const float *coeff,
   checkCudaErrors(cudaMemcpy(bufferOut + padding, input,
                              volumeSize * sizeof(float),
                              cudaMemcpyHostToDevice));
-
+  //check which stencil has been used
+  if (outputCaching)
+  { 
+    printf("output caching\n");
+    checkCudaErrors(
+      cudaMemcpyToSymbol(stencil3d, (void *)coeff, (radius*2+1) * (radius*2+1) * (radius*2+1) * sizeof(float)));
+      }
+  else {
   // Copy the coefficients to the device coefficient buffer
   checkCudaErrors(
       cudaMemcpyToSymbol(stencil, (void *)coeff, (radius + 1) * sizeof(float)));
-
+  }
 #ifdef GPU_PROFILING
 
   // Create the events
@@ -286,6 +293,7 @@ bool fdtdGPU(float *output, const float *input, const float *coeff,
   }
 #ifdef GPU_PROFILING
   // Enqueue end event
+  // It was like that in the standard implementation DO NOT CHANGE
   checkCudaErrors(cudaEventRecord(profileEnd, 0));
 #endif
 

@@ -41,7 +41,7 @@ typedef uint64_t memsize_t;
 #define k_blockDimMaxY 10
 #define k_blockDimMaxZ 10
 #define k_blockSizeMin 128
-#define k_blockSizeMax (k_blockDimX * k_blockDimMaxY)
+#define k_blockSizeMax (k_blockDimX * k_blockDimMaxY * k_blockDimMaxZ)
 
 bool getTargetDeviceGlobalMemSize(memsize_t *result, const int argc,
                                   const char **argv);

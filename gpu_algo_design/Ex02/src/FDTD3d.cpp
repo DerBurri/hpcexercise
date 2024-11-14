@@ -265,11 +265,17 @@ bool runTest(int argc, const char **argv) {
   // Allocate memory
   host_output = (float *)calloc(volumeSize, sizeof(float));
   input = (float *)malloc(volumeSize * sizeof(float));
-  coeff = (float *)malloc((radius + 1) * sizeof(float));
-
-  // Create coefficients
-  for (int i = 0; i <= radius; i++) {
+  if (outputCaching) {
+    coeff = (float*)malloc((radius*2+1) *(radius*2+1) *(radius*2+1) * sizeof(float));
+    for (int i = 0; i<=(radius*2+1) *(radius*2+1) * (radius*2+1); i++) {
+      coeff[i] = 0.1f;
+    }
+  } else {
+    coeff = (float *)malloc((radius + 1) * sizeof(float));
+      // Create coefficients
+    for (int i = 0; i <= radius; i++) {
     coeff[i] = 0.1f;
+  }
   }
 
   // Generate data
@@ -289,6 +295,7 @@ bool runTest(int argc, const char **argv) {
     fdtdReference(host_output, input, coeff, dimx, dimy, dimz, radius,
                   timesteps);
   } else {
+    //TODO no real reference 
     fdtdReference(host_output, input, coeff, dimx, dimy, dimz, radius,
                   timesteps);
   }
