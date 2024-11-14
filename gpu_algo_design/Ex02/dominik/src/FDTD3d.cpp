@@ -299,21 +299,20 @@ bool runTest(int argc, const char **argv) {
   if (verboseOutput) printStructure(input, outerDimx, outerDimy, outerDimz);
 
     // Execute on the host
+#ifndef GPU_PROFILING
 #ifndef SUPRESS_OUTPUT
   printf("fdtdReference...\n");
 #endif
   if (kDim == 2) {
-    // fdtdReference(host_output, input, coeff, dimx, dimy, dimz, radius,
-    // timesteps); ! TMP to confirm that the 3D implementaiton is working
-    // correctly
-    fdtdGPU(host_output, input, coeff, dimx, dimy, dimz, radius, timesteps, 2,
-            argc, argv);
+    fdtdReference(host_output, input, coeff, dimx, dimy, dimz, radius,
+                  timesteps);
   } else if (kDim == 3) {
     fdtdReference3D(host_output, input, coeff, dimx, dimy, dimz, radius,
                     timesteps, true);
   }
 #ifndef SUPRESS_OUTPUT
   printf("fdtdReference complete\n");
+#endif
 #endif
 
 #ifdef DEBUG
@@ -348,7 +347,7 @@ bool runTest(int argc, const char **argv) {
   float tolerance = 0.0001f;
 #ifndef SUPRESS_OUTPUT
   printf("\nCompareData (tolerance %f)...\n", tolerance);
-#endif
   return compareData(device_output, host_output, dimx, dimy, dimz, radius,
                      tolerance);
+#endif
 }

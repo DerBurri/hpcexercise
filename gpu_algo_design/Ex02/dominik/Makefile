@@ -6,7 +6,7 @@ OUT = ./bin/FDTD3d
 BIN = ./bin/
 
 # Default compilation flags
-CFLAGS = -g -G -ccbin g++ -m64 -diag-suppress=177
+CFLAGS = -O3 -g -G -ccbin g++ -m64 -diag-suppress=177
 
 # Include directory
 INCLUDE_DIRS = /opt/asc/spack/opt/spack/linux-debian12-x86_64_v2/gcc-13.1.0/cuda-12.6.1-eq5axkonpabssoacghdsg3q4nas5nkja/include
@@ -16,12 +16,12 @@ INCLUDE_DIRS += ./inc
 CUDA_PATH = /opt/asc/spack/opt/spack/linux-debian12-x86_64_v2/gcc-13.1.0/cuda-12.6.1-eq5axkonpabssoacghdsg3q4nas5nkja
 
 # Compiler flags
-CFLAGS = -g -G -ccbin g++ -m64 -gencode arch=compute_50,code=sm_50 -gencode arch=compute_52,code=sm_52 -gencode arch=compute_60,code=sm_60 -gencode arch=compute_61,code=sm_61 -gencode arch=compute_70,code=sm_70 -gencode arch=compute_75,code=sm_75 -gencode arch=compute_80,code=sm_80 -gencode arch=compute_86,code=sm_86 -gencode arch=compute_89,code=sm_89 -gencode arch=compute_90,code=sm_90 -gencode arch=compute_90,code=compute_90 -diag-suppress=177
+CFLAGS = -O3 -g -G -ccbin g++ -m64 -gencode arch=compute_50,code=sm_50 -gencode arch=compute_52,code=sm_52 -gencode arch=compute_60,code=sm_60 -gencode arch=compute_61,code=sm_61 -gencode arch=compute_70,code=sm_70 -gencode arch=compute_75,code=sm_75 -gencode arch=compute_80,code=sm_80 -gencode arch=compute_86,code=sm_86 -gencode arch=compute_89,code=sm_89 -gencode arch=compute_90,code=sm_90 -gencode arch=compute_90,code=compute_90 -diag-suppress=177
 
 
 # GPU-specific compilation flags
-CFLAGS_4080 = -ccbin g++ -m64 -gencode arch=compute_89,code=sm_89 -diag-suppress=177
-CFLAGS_2080ti = -ccbin g++ -m64 -gencode arch=compute_75,code=sm_75 -diag-suppress=177
+CFLAGS_4080 =  -O3 -ccbin g++ -m64 -gencode arch=compute_89,code=sm_89 -diag-suppress=177
+CFLAGS_2080ti =  -O3 -ccbin g++ -m64 -gencode arch=compute_75,code=sm_75 -diag-suppress=177
 
 # Default target
 all: clean build

@@ -1,0 +1,10 @@
+FDTD3d, radius 1: Throughput = 44227.0489 MPoints/s, Time = 0.00120 s, Size = 53157376 Points, NumDevsUsed = 1, Blocksize = 100
+FDTD3d, radius 2: Throughput = 44283.6418 MPoints/s, Time = 0.00120 s, Size = 53157376 Points, NumDevsUsed = 1, Blocksize = 100
+FDTD3d, radius 3: Throughput = 37857.0641 MPoints/s, Time = 0.00140 s, Size = 53157376 Points, NumDevsUsed = 1, Blocksize = 100
+FDTD3d, radius 4: Throughput = 39908.9002 MPoints/s, Time = 0.00133 s, Size = 53157376 Points, NumDevsUsed = 1, Blocksize = 100
+FDTD3d, radius 5: Throughput = 33835.0990 MPoints/s, Time = 0.00157 s, Size = 53157376 Points, NumDevsUsed = 1, Blocksize = 100
+FDTD3d, radius 6: Throughput = 33759.9741 MPoints/s, Time = 0.00157 s, Size = 53157376 Points, NumDevsUsed = 1, Blocksize = 100
+FDTD3d, radius 7: Throughput = 32485.2952 MPoints/s, Time = 0.00164 s, Size = 53157376 Points, NumDevsUsed = 1, Blocksize = 100
+FDTD3d, radius 8: Throughput = 33677.8424 MPoints/s, Time = 0.00158 s, Size = 53157376 Points, NumDevsUsed = 1, Blocksize = 100
+FDTD3d, radius 9: Throughput = 28441.8574 MPoints/s, Time = 0.00187 s, Size = 53157376 Points, NumDevsUsed = 1, Blocksize = 100
+FDTD3d, radius 10: Throughput = 25388.7681 MPoints/s, Time = 0.00209 s, Size = 53157376 Points, NumDevsUsed = 1, Blocksize = 100
