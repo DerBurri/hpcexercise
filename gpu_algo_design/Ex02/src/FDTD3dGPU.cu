@@ -34,6 +34,10 @@
 #include "FDTD3dGPU.h"
 #include "FDTD3dGPUKernel.cuh"
 
+#ifndef I_BENCHMARK
+#define I_BENCHMARK 100
+#endif
+
 #define GPU_PROFILING
 
 bool getTargetDeviceGlobalMemSize(memsize_t *result, const int argc,
@@ -207,121 +211,113 @@ bool fdtdGPU(float *output, const float *input, const float *coeff,
       cudaMemcpyToSymbol(stencil, (void *)coeff, (radius + 1) * sizeof(float)));
 
 #ifdef GPU_PROFILING
-
   // Create the events
   checkCudaErrors(cudaEventCreate(&profileStart));
   checkCudaErrors(cudaEventCreate(&profileEnd));
-
 #endif
 
   // Execute the FDTD
   float *bufferSrc = bufferIn + padding;
   float *bufferDst = bufferOut + padding;
-  printf(" GPU FDTD loop\n");
-//! TODO add multiple benchmarking iterations including a warmup iteration when
-//! doing profiling
-//! also include a steady_clock measurement
+
+  double throughputSum = 0;
+  double avgElapsedTimeSum = 0;
+  size_t pointsComputed = dimx * dimy * dimz;
+
+  for (int meas_it = 0; meas_it < I_BENCHMARK; meas_it++) {
+
 #ifdef GPU_PROFILING
-  // Enqueue start event
-  checkCudaErrors(cudaEventRecord(profileStart, 0));
+    checkCudaErrors(cudaEventRecord(profileStart, 0));
 #endif
 
-  for (int it = 0; it < timesteps; it++) {
-#ifndef GPU_PROFILING
-    printf("\tt = %d ", it);
-    // Launch the kernel
-    printf("launch kernel\n");
-#endif
+    for (int it = 0; it < timesteps; it++) {
 
-#define CALL_KERNEL_INPUT(n)                                             \
-  case n:                                                                \
-    FiniteDifferencesKernel<n>                                           \
-        <<<dimGrid, dimBlock>>>(bufferDst, bufferSrc, dimx, dimy, dimz); \
-    break;
-#define CALL_KERNEL_OUTPUT(n)                                            \
-  case n:                                                                \
-    FiniteDifferences3DBoxKernel<n>                                      \
-        <<<dimGrid, dimBlock>>>(bufferDst, bufferSrc, dimx, dimy, dimz); \
-    break;
+#define CALL_KERNEL_INPUT(n)                                               \
+    case n:                                                                \
+      FiniteDifferencesKernel<n>                                           \
+          <<<dimGrid, dimBlock>>>(bufferDst, bufferSrc, dimx, dimy, dimz); \
+      break;
+#define CALL_KERNEL_OUTPUT(n)                                              \
+    case n:                                                                \
+      FiniteDifferences3DBoxKernel<n>                                      \
+          <<<dimGrid, dimBlock>>>(bufferDst, bufferSrc, dimx, dimy, dimz); \
+      break;
 
-    if (outputCaching) {
-      switch (radius) {
-        CALL_KERNEL_OUTPUT(1)
-        CALL_KERNEL_OUTPUT(2)
-        CALL_KERNEL_OUTPUT(3)
-        CALL_KERNEL_OUTPUT(4)
-        CALL_KERNEL_OUTPUT(5)
-        CALL_KERNEL_OUTPUT(6)
-        CALL_KERNEL_OUTPUT(7)
-        CALL_KERNEL_OUTPUT(8)
-        CALL_KERNEL_OUTPUT(9)
-        CALL_KERNEL_OUTPUT(10)
-        default:
-          std::cerr << "Radius must be between 1 and 10." << std::endl;
-          exit(EXIT_FAILURE);
+      if (outputCaching) {
+        switch (radius) {
+          CALL_KERNEL_OUTPUT(1)
+          CALL_KERNEL_OUTPUT(2)
+          CALL_KERNEL_OUTPUT(3)
+          CALL_KERNEL_OUTPUT(4)
+          CALL_KERNEL_OUTPUT(5)
+          CALL_KERNEL_OUTPUT(6)
+          CALL_KERNEL_OUTPUT(7)
+          CALL_KERNEL_OUTPUT(8)
+          CALL_KERNEL_OUTPUT(9)
+          CALL_KERNEL_OUTPUT(10)
+          default:
+            std::cerr << "Radius must be between 1 and 10." << std::endl;
+            exit(EXIT_FAILURE);
+        }
+      } else {
+        switch (radius) {
+          CALL_KERNEL_INPUT(1)
+          CALL_KERNEL_INPUT(2)
+          CALL_KERNEL_INPUT(3)
+          CALL_KERNEL_INPUT(4)
+          CALL_KERNEL_INPUT(5)
+          CALL_KERNEL_INPUT(6)
+          CALL_KERNEL_INPUT(7)
+          CALL_KERNEL_INPUT(8)
+          CALL_KERNEL_INPUT(9)
+          CALL_KERNEL_INPUT(10)
+          default:
+            std::cerr << "Radius must be between 1 and 10." << std::endl;
+            exit(EXIT_FAILURE);
+        }
       }
-    } else {
-      switch (radius) {
-        CALL_KERNEL_INPUT(1)
-        CALL_KERNEL_INPUT(2)
-        CALL_KERNEL_INPUT(3)
-        CALL_KERNEL_INPUT(4)
-        CALL_KERNEL_INPUT(5)
-        CALL_KERNEL_INPUT(6)
-        CALL_KERNEL_INPUT(7)
-        CALL_KERNEL_INPUT(8)
-        CALL_KERNEL_INPUT(9)
-        CALL_KERNEL_INPUT(10)
-        default:
-          std::cerr << "Radius must be between 1 and 10." << std::endl;
-          exit(EXIT_FAILURE);
-      }
+      // Toggle the buffers
+      // Visual Studio 2005 does not like std::swap
+      //    std::swap<float *>(bufferSrc, bufferDst);
+      float *tmp = bufferDst;
+      bufferDst = bufferSrc;
+      bufferSrc = tmp;
     }
-    // Toggle the buffers
-    // Visual Studio 2005 does not like std::swap
-    //    std::swap<float *>(bufferSrc, bufferDst);
-    float *tmp = bufferDst;
-    bufferDst = bufferSrc;
-    bufferSrc = tmp;
-  }
+
 #ifdef GPU_PROFILING
-  // Enqueue end event
-  checkCudaErrors(cudaEventRecord(profileEnd, 0));
+    checkCudaErrors(cudaEventRecord(profileEnd, 0));
 #endif
 
-  printf("\n");
+    // Wait for the kernel to complete
+    checkCudaErrors(cudaDeviceSynchronize());
 
-  // Wait for the kernel to complete
-  checkCudaErrors(cudaDeviceSynchronize());
+    // Read the result back, result is in bufferSrc (after final toggle)
+    checkCudaErrors(cudaMemcpy(output, bufferSrc, volumeSize * sizeof(float),
+                               cudaMemcpyDeviceToHost));
 
-  // Read the result back, result is in bufferSrc (after final toggle)
-  checkCudaErrors(cudaMemcpy(output, bufferSrc, volumeSize * sizeof(float),
-                             cudaMemcpyDeviceToHost));
+    float elapsedTimeMS = 0;
 
-// Report time
-#ifdef GPU_PROFILING
-  float elapsedTimeMS = 0;
+    if (profileTimesteps > 0) {
+      checkCudaErrors(
+          cudaEventElapsedTime(&elapsedTimeMS, profileStart, profileEnd));
+    }
 
-  if (profileTimesteps > 0) {
-    checkCudaErrors(
-        cudaEventElapsedTime(&elapsedTimeMS, profileStart, profileEnd));
+    if (profileTimesteps > 0) {
+      // Convert milliseconds to seconds
+      double elapsedTime = elapsedTimeMS * 1.0e-3;
+      double avgElapsedTime = elapsedTime / (double)profileTimesteps;
+      // Determine throughput
+      double throughputM = 1.0e-6 * (double)pointsComputed / avgElapsedTime;
+
+      avgElapsedTimeSum += avgElapsedTime;
+      throughputSum += throughputM;
+    }
   }
 
-  if (profileTimesteps > 0) {
-    // Convert milliseconds to seconds
-    double elapsedTime = elapsedTimeMS * 1.0e-3;
-    double avgElapsedTime = elapsedTime / (double)profileTimesteps;
-    // Determine number of computations per timestep
-    size_t pointsComputed = dimx * dimy * dimz;
-    // Determine throughput
-    double throughputM = 1.0e-6 * (double)pointsComputed / avgElapsedTime;
-  printf("FDTD3d-radius%d, caching %s: Throughput = %.4f MPoints/s, Time "
+  printf("FDTD3d-radius%d, caching %s: Avg. throughput = %.4f MPoints/s, Avg. time "
       "= %.5f s, Size = %u Points, Blocksize = %u\n",
-       radius, outputCaching ? "output" : "input", throughputM, avgElapsedTime, 
+       radius, outputCaching ? "output" : "input", throughputSum / I_BENCHMARK, avgElapsedTimeSum / I_BENCHMARK, 
        pointsComputed, dimBlock.x * dimBlock.y);
-  }
-
-#endif
 
   // Cleanup
   if (bufferIn) {

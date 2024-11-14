@@ -10,8 +10,8 @@
 # Loop through radius values from 1 to 10
 for radius in {1..10}; do
     # Run with output caching set to true
-    ./FDTD3d --radius=$radius --caching=output
+    ./FDTD3d --radius=$radius --caching=output | grep "FDTD3d-radius*"
     
     # Run with output caching set to false
-    ./FDTD3d --radius=$radius --caching=input
+    ./FDTD3d --radius=$radius --caching=input | grep "FDTD3d-radius*"
 done

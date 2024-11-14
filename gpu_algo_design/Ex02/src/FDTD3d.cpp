@@ -41,10 +41,6 @@
 #define CLAMP(a, min, max) (MIN(max, MAX(a, min)))
 #endif
 
-#ifndef I_BENCHMARK
-#define I_BENCHMARK 100
-#endif
-
 //// Name of the log file
 // const char *printfFile = "FDTD3d.txt";
 
