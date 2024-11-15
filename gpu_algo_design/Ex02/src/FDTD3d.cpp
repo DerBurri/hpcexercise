@@ -293,7 +293,7 @@ bool runTest(int argc, const char **argv) {
   } else {
     // Not implemented
     //fdtdReference(host_output, input, coeff, dimx, dimy, dimz, radius,
-                  timesteps);
+    //              timesteps);
   }
   printf("fdtdReference complete\n");
 

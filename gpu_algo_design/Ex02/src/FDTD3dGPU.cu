@@ -35,7 +35,7 @@
 #include "FDTD3dGPUKernel.cuh"
 
 #ifndef I_BENCHMARK
-#define I_BENCHMARK 100
+#define I_BENCHMARK 10
 #endif
 
 #define GPU_PROFILING
@@ -244,17 +244,10 @@ bool fdtdGPU(float *output, const float *input, const float *coeff,
   float *bufferSrc = bufferIn + padding;
   float *bufferDst = bufferOut + padding;
   printf(" GPU FDTD loop\n");
-//! TODO add multiple benchmarking iterations including a warmup iteration when
-//! doing profiling
-//! also include a steady_clock measurement
     // Copy the input to the device output buffer (actually only need the halo)
     checkCudaErrors(cudaMemcpy(bufferOut + padding, input,
                                volumeSize * sizeof(float),
                                cudaMemcpyHostToDevice));
-
-    // Renew data
-    float *bufferSrc = bufferIn + padding;
-    float *bufferDst = bufferOut + padding;
 
     // Warmup kernel
     emptyKernel<<<1,1>>>();
