@@ -1,21 +1,20 @@
-FDTD3d-radius1, Caching=Output, Throughput = 64767.9358 MPoints/s, Time = 0.00082 s, Size = 53157376 Points, NumDevsUsed = 1, Blocksize = 100
-FDTD3d-radius2, Caching=Output Throughput = 16599.7288 MPoints/s, Time = 0.00320 s, Size = 53157376 Points, NumDevsUsed = 1, Blocksize = 100
-FDTD3d-radius3, Caching=Output, Throughput = 6316.2279 MPoints/s, Time = 0.00842 s, Size = 53157376 Points, NumDevsUsed = 1, Blocksize = 100
-FDTD3d-radius4, Caching=Output, Throughput = 3024.8400 MPoints/s, Time = 0.01757 s, Size = 53157376 Points, NumDevsUsed = 1, Blocksize = 100
-FDTD3d-radius5, Caching=Output, Throughput = 1731.9100 MPoints/s, Time = 0.03069 s, Size = 53157376 Points, NumDevsUsed = 1, Blocksize = 100
-FDTD3d-radius6, Caching=Output, Throughput = 1095.8729 MPoints/s, Time = 0.04851 s, Size = 53157376 Points, NumDevsUsed = 1, Blocksize = 100
-FDTD3d-radius7, Caching=Output, Throughput = 706.3654 MPoints/s, Time = 0.07525 s, Size = 53157376 Points, NumDevsUsed = 1, Blocksize = 100
-FDTD3d-radius8, Caching=Output, Throughput = 485.5740 MPoints/s, Time = 0.10947 s, Size = 53157376 Points, NumDevsUsed = 1, Blocksize = 100
-FDTD3d-radius9, Caching=Output, Throughput = 361.3288 MPoints/s, Time = 0.14712 s, Size = 53157376 Points, NumDevsUsed = 1, Blocksize = 100
-FDTD3d-radius10,Caching=Output,  Throughput = 264.6861 MPoints/s, Time = 0.20083 s, Size = 53157376 Points, NumDevsUsed = 1, Blocksize = 100
-
-FDTD3d-radius1, Caching=Input, Throughput = 928.4501 MPoints/s, Time = 0.05725 s, Size = 53157376 Points, NumDevsUsed = 1, Blocksize = 100
-FDTD3d-radius2, Caching=Input, Throughput = 694.2918 MPoints/s, Time = 0.07656 s, Size = 53157376 Points, NumDevsUsed = 1, Blocksize = 100
-FDTD3d-radius3, Caching=Input, Throughput = 676.4595 MPoints/s, Time = 0.07858 s, Size = 53157376 Points, NumDevsUsed = 1, Blocksize = 100
-FDTD3d-radius4, Caching=Input, Throughput = 450.1235 MPoints/s, Time = 0.11810 s, Size = 53157376 Points, NumDevsUsed = 1, Blocksize = 100
-FDTD3d-radius5, Caching=Input, Throughput = 390.6042 MPoints/s, Time = 0.13609 s, Size = 53157376 Points, NumDevsUsed = 1, Blocksize = 100
-FDTD3d-radius6, Caching=Input, Throughput = 340.3754 MPoints/s, Time = 0.15617 s, Size = 53157376 Points, NumDevsUsed = 1, Blocksize = 100
-FDTD3d-radius7, Caching=Input, Throughput = 304.5280 MPoints/s, Time = 0.17456 s, Size = 53157376 Points, NumDevsUsed = 1, Blocksize = 100
-FDTD3d-radius8, Caching=Input, Throughput = 266.1695 MPoints/s, Time = 0.19971 s, Size = 53157376 Points, NumDevsUsed = 1, Blocksize = 100
-FDTD3d-radius9, Caching=Input, Throughput = 243.8496 MPoints/s, Time = 0.21799 s, Size = 53157376 Points, NumDevsUsed = 1, Blocksize = 100
-FDTD3d-radius10,Caching=Input, Throughput = 222.3426 MPoints/s, Time = 0.23908 s, Size = 53157376 Points, NumDevsUsed = 1, Blocksize = 100
+FDTD3d-radius1, caching output: Avg. throughput = 56840.6475 MPoints/s, Avg. time = 0.00000 s, Size = 53157376 Points, Blocksize = 100
+FDTD3d-radius2, caching output: Avg. throughput = 52568.6092 MPoints/s, Avg. time = 0.00000 s, Size = 53157376 Points, Blocksize = 100
+FDTD3d-radius3, caching output: Avg. throughput = 42485.1141 MPoints/s, Avg. time = 0.00000 s, Size = 53157376 Points, Blocksize = 100
+FDTD3d-radius4, caching output: Avg. throughput = 29917.4798 MPoints/s, Avg. time = 0.00000 s, Size = 53157376 Points, Blocksize = 100
+FDTD3d-radius5, caching output: Avg. throughput = 20344.9850 MPoints/s, Avg. time = 0.00000 s, Size = 53157376 Points, Blocksize = 100
+FDTD3d-radius6, caching output: Avg. throughput = 12842.4280 MPoints/s, Avg. time = 0.00000 s, Size = 53157376 Points, Blocksize = 100
+FDTD3d-radius7, caching output: Avg. throughput = 8852.4808 MPoints/s, Avg. time = 0.00000 s, Size = 53157376 Points, Blocksize = 100
+FDTD3d-radius8, caching output: Avg. throughput = 5790.0593 MPoints/s, Avg. time = 0.00000 s, Size = 53157376 Points, Blocksize = 100
+FDTD3d-radius9, caching output: Avg. throughput = 4111.2930 MPoints/s, Avg. time = 0.00000 s, Size = 53157376 Points, Blocksize = 100
+FDTD3yd-radius10, caching output: Avg. throughput = 3010.1802 MPoints/s, Avg. time = 0.00000 s, Size = 53157376 Points, Blocksize = 100
+FDTD3d-radius1, caching input: Avg. throughput = 44784.1979 MPoints/s, Avg. time = 0.00119 s, Size = 53157376 Points, Blocksize = 100
+FDTD3d-radius2, caching input: Avg. throughput = 44886.6281 MPoints/s, Avg. time = 0.00118 s, Size = 53157376 Points, Blocksize = 100
+FDTD3d-radius3, caching input: Avg. throughput = 38898.0347 MPoints/s, Avg. time = 0.00137 s, Size = 53157376 Points, Blocksize = 100
+FDTD3d-radius4, caching input: Avg. throughput = 41628.2021 MPoints/s, Avg. time = 0.00128 s, Size = 53157376 Points, Blocksize = 100
+FDTD3d-radius5, caching input: Avg. throughput = 35335.8827 MPoints/s, Avg. time = 0.00150 s, Size = 53157376 Points, Blocksize = 100
+FDTD3d-radius6, caching input: Avg. throughput = 33777.1575 MPoints/s, Avg. time = 0.00157 s, Size = 53157376 Points, Blocksize = 100
+FDTD3d-radius7, caching input: Avg. throughput = 32558.0675 MPoints/s, Avg. time = 0.00163 s, Size = 53157376 Points, Blocksize = 100
+FDTD3d-radius8, caching input: Avg. throughput = 33862.9229 MPoints/s, Avg. time = 0.00157 s, Size = 53157376 Points, Blocksize = 100
+FDTD3d-radius9, caching input: Avg. throughput = 28547.2082 MPoints/s, Avg. time = 0.00186 s, Size = 53157376 Points, Blocksize = 100
+FDTD3d-radius10, caching input: Avg. throughput = 25552.1653 MPoints/s, Avg. time = 0.00208 s, Size = 53157376 Points, Blocksize = 100

@@ -200,26 +200,15 @@ __global__ void FiniteDifferences3DBoxKernel(float *output, const float *input,
     for (int z = -RADIUS; z <= RADIUS; z++) {
       for (int y = -RADIUS; y <= RADIUS; y++) {
         for (int x = -RADIUS; x <= RADIUS; x++) {
-          int global_x = gtidx + x;
-          int global_y = gtidy + y;
-          int global_z = gtidz + z;
-
-          // Clamp to boundary
-          global_x = max(0, min(dimx - 1, global_x));
-          global_y = max(0, min(dimy - 1, global_y));
-          global_z = max(0, min(dimz - 1, global_z));
-
           value += stencil3d[stencil_idx] * input[inputIndex];
           stencil_idx++;
         }
       }
     }
-    // Cache the output value in shared memory
+    // Cache the output value in shared memory (maybe not needed, because value already is output
     cache[ltidz][ltidy][ltidx] = value;
   }
-
   cg::sync(cta);
-
   // Write the cached output to global memory
   if (validw) {
     output[outputIndex] = cache[ltidz][ltidy][ltidx];

@@ -37,6 +37,7 @@ typedef unsigned __int64 memsize_t;
 typedef uint64_t memsize_t;
 #endif
 
+//Reduced because Shared Memory was used at begin. Can be optimized. But we only tested Radii 1 to 10 so not increased because we don't need more data
 #define k_blockDimX 10
 #define k_blockDimMaxY 10
 #define k_blockDimMaxZ 10

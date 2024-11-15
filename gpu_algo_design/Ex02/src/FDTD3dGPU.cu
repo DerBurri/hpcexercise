@@ -35,7 +35,7 @@
 #include "FDTD3dGPUKernel.cuh"
 
 #ifndef I_BENCHMARK
-#define I_BENCHMARK 10
+#define I_BENCHMARK 100
 #endif
 
 #define GPU_PROFILING
@@ -209,7 +209,13 @@ bool fdtdGPU(float *output, const float *input, const float *coeff,
   double throughputSum = 0;
   double avgElapsedTimeSum = 0;
   size_t pointsComputed = dimx * dimy * dimz;
+  for (int meas_it = 0; meas_it < 20; meas_it++) {
+      // Warmup kernel
+    emptyKernel<<<1,1>>>();
+  }
 
+  //We copy every time to the device to get best accuracy for real usage (because then also the coefficients are copied to the device)
+  // Can be changed if data resides on the device for further computations!!
   for (int meas_it = 0; meas_it < I_BENCHMARK; meas_it++) {
     // Copy the input to the device input buffer
     checkCudaErrors(cudaMemcpy(bufferIn + padding, input,
@@ -228,11 +234,12 @@ bool fdtdGPU(float *output, const float *input, const float *coeff,
       cudaMemcpyToSymbol(stencil3d, (void *)coeff, (radius*2+1) * (radius*2+1) * (radius*2+1) * sizeof(float)));
       }
   else {
-  // Copy the coefficients to the device coefficient buffer
+  // Copy the coefficients to the device coefficient buffer 
   checkCudaErrors(
       cudaMemcpyToSymbol(stencil, (void *)coeff, (radius + 1) * sizeof(float)));
   }
 #ifdef GPU_PROFILING
+
 
   // Create the events
   checkCudaErrors(cudaEventCreate(&profileStart));
@@ -249,8 +256,6 @@ bool fdtdGPU(float *output, const float *input, const float *coeff,
                                volumeSize * sizeof(float),
                                cudaMemcpyHostToDevice));
 
-    // Warmup kernel
-    emptyKernel<<<1,1>>>();
     checkCudaErrors(cudaDeviceSynchronize());
 
 #ifdef GPU_PROFILING
