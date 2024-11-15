@@ -17,7 +17,7 @@ def flop_per_point(radius):
     return (6 * radius) + (radius + 1)
 
 # Read data from the file
-with open('test_fdtd3d_62075.log', 'r') as file:
+with open('fdtd3d-62222.out', 'r') as file:
     lines = file.readlines()
 
 # Initialize lists to store radii and throughput data
