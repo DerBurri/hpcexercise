@@ -48,17 +48,21 @@
 bool runTest(int argc, const char **argv);
 void showHelp(const int argc, const char **argv);
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv)
+{
   bool bTestResult = false;
   // Start the log
   printf("%s Starting...\n\n", argv[0]);
 
   // Check help flag
-  if (checkCmdLineFlag(argc, (const char **)argv, "help")) {
+  if (checkCmdLineFlag(argc, (const char **)argv, "help"))
+  {
     printf("Displaying help on console\n");
     showHelp(argc, (const char **)argv);
     bTestResult = true;
-  } else {
+  }
+  else
+  {
     // Execute
     bTestResult = runTest(argc, (const char **)argv);
   }
@@ -67,10 +71,14 @@ int main(int argc, char **argv) {
   exit(bTestResult ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
-void showHelp(const int argc, const char **argv) {
-  if (argc > 0) std::cout << std::endl << argv[0] << std::endl;
+void showHelp(const int argc, const char **argv)
+{
+  if (argc > 0)
+    std::cout << std::endl
+              << argv[0] << std::endl;
 
-  std::cout << std::endl << "Syntax:" << std::endl;
+  std::cout << std::endl
+            << "Syntax:" << std::endl;
   std::cout << std::left;
   std::cout << "    " << std::setw(20) << "--caching=<input|output>"
             << "Specify caching mode for device memory" << std::endl;
@@ -102,11 +110,15 @@ void showHelp(const int argc, const char **argv) {
 }
 
 void printStructure(float *data, const int dimx, const int dimy,
-                    const int dimz) {
-  for (int iz = 0; iz < dimz; iz++) {
+                    const int dimz)
+{
+  for (int iz = 0; iz < dimz; iz++)
+  {
     std::cout << "Layer " << iz << std::endl;
-    for (int iy = 0; iy < dimy; iy++) {
-      for (int ix = 0; ix < dimx; ix++) {
+    for (int iy = 0; iy < dimy; iy++)
+    {
+      for (int ix = 0; ix < dimx; ix++)
+      {
         std::cout << " " << *data;
 
         ++data;
@@ -117,7 +129,8 @@ void printStructure(float *data, const int dimx, const int dimy,
   }
 }
 
-bool runTest(int argc, const char **argv) {
+bool runTest(int argc, const char **argv)
+{
   float *host_output;
   float *device_output;
   float *input;
@@ -170,18 +183,22 @@ bool runTest(int argc, const char **argv) {
   defaultDim -= k_radius_default * 2;
 
   // Check dimension is valid
-  if (defaultDim < k_dim_min) {
+  if (defaultDim < k_dim_min)
+  {
     printf(
         "insufficient device memory (maximum volume on device is %d, must be "
         "between %d and %d).\n",
         defaultDim, k_dim_min, k_dim_max);
     exit(EXIT_FAILURE);
-  } else if (defaultDim > k_dim_max) {
+  }
+  else if (defaultDim > k_dim_max)
+  {
     defaultDim = k_dim_max;
   }
 
   // For QA testing, override default volume size
-  if (checkCmdLineFlag(argc, argv, "qatest")) {
+  if (checkCmdLineFlag(argc, argv, "qatest"))
+  {
     defaultDim = MIN(defaultDim, k_dim_qa);
   }
 
@@ -193,52 +210,67 @@ bool runTest(int argc, const char **argv) {
   timesteps = k_timesteps_default;
 
   // Check Caching Mode
-  if (checkCmdLineFlag(argc, argv, "caching")) {
+  if (checkCmdLineFlag(argc, argv, "caching"))
+  {
     char *caching;
     getCmdLineArgumentString(argc, argv, "caching", &caching);
-    if (strcmp(caching, "input") == 0) {
+    if (strcmp(caching, "input") == 0)
+    {
       outputCaching = false;
-    } else if (strcmp(caching, "output") == 0) {
+    }
+    else if (strcmp(caching, "output") == 0)
+    {
       outputCaching = true;
-    } else {
+    }
+    else
+    {
       printf("Invalid caching mode - using default (input caching)\n");
       outputCaching = false;
     }
-  } else {
+  }
+  else
+  {
     outputCaching = false;
   }
   // Parse command line arguments
-  if (checkCmdLineFlag(argc, argv, "dimx")) {
+  if (checkCmdLineFlag(argc, argv, "dimx"))
+  {
     dimx =
         CLAMP(getCmdLineArgumentInt(argc, argv, "dimx"), k_dim_min, k_dim_max);
   }
 
-  if (checkCmdLineFlag(argc, argv, "dimy")) {
+  if (checkCmdLineFlag(argc, argv, "dimy"))
+  {
     dimy =
         CLAMP(getCmdLineArgumentInt(argc, argv, "dimy"), k_dim_min, k_dim_max);
   }
 
-  if (checkCmdLineFlag(argc, argv, "dimz")) {
+  if (checkCmdLineFlag(argc, argv, "dimz"))
+  {
     dimz =
         CLAMP(getCmdLineArgumentInt(argc, argv, "dimz"), k_dim_min, k_dim_max);
   }
 
-  if (checkCmdLineFlag(argc, argv, "radius")) {
+  if (checkCmdLineFlag(argc, argv, "radius"))
+  {
     radius = CLAMP(getCmdLineArgumentInt(argc, argv, "radius"), k_radius_min,
                    k_radius_max);
   }
 
-  if (checkCmdLineFlag(argc, argv, "timesteps")) {
+  if (checkCmdLineFlag(argc, argv, "timesteps"))
+  {
     timesteps = CLAMP(getCmdLineArgumentInt(argc, argv, "timesteps"),
                       k_timesteps_min, k_timesteps_max);
   }
 
-  if (checkCmdLineFlag(argc, argv, "halo")) {
+  if (checkCmdLineFlag(argc, argv, "halo"))
+  {
     globalHaloValue = getCmdLineArgumentInt(argc, argv, "halo");
     defineHalo = true;
   }
 
-  if (checkCmdLineFlag(argc, (const char **)argv, "verbose")) {
+  if (checkCmdLineFlag(argc, (const char **)argv, "verbose"))
+  {
     verboseOutput = true;
   }
 
@@ -261,17 +293,22 @@ bool runTest(int argc, const char **argv) {
   // Allocate memory
   host_output = (float *)calloc(volumeSize, sizeof(float));
   input = (float *)malloc(volumeSize * sizeof(float));
-  if (outputCaching) {
-    coeff = (float*)malloc((radius*2+1) *(radius*2+1) *(radius*2+1) * sizeof(float));
-    for (int i = 0; i<=(radius*2+1) *(radius*2+1) * (radius*2+1); i++) {
+  if (outputCaching)
+  {
+    coeff = (float *)malloc((radius * 2 + 1) * (radius * 2 + 1) * (radius * 2 + 1) * sizeof(float));
+    for (int i = 0; i <= (radius * 2 + 1) * (radius * 2 + 1) * (radius * 2 + 1); i++)
+    {
       coeff[i] = 0.1f;
     }
-  } else {
-    coeff = (float *)malloc((radius + 1) * sizeof(float));
-      // Create coefficients
-    for (int i = 0; i <= radius; i++) {
-    coeff[i] = 0.1f;
   }
+  else
+  {
+    coeff = (float *)malloc((radius + 1) * sizeof(float));
+    // Create coefficients
+    for (int i = 0; i <= radius; i++)
+    {
+      coeff[i] = 0.1f;
+    }
   }
 
   // Generate data
@@ -283,16 +320,20 @@ bool runTest(int argc, const char **argv) {
       "timesteps...\n\n",
       dimx, dimy, dimz, radius, timesteps);
 
-  if (verboseOutput) printStructure(input, outerDimx, outerDimy, outerDimz);
+  if (verboseOutput)
+    printStructure(input, outerDimx, outerDimy, outerDimz);
 
   // Execute on the host
   printf("fdtdReference...\n");
-  if (outputCaching) {
+  if (outputCaching)
+  {
     fdtdReference(host_output, input, coeff, dimx, dimy, dimz, radius,
                   timesteps);
-  } else {
+  }
+  else
+  {
     // Not implemented
-    //fdtdReference(host_output, input, coeff, dimx, dimy, dimz, radius,
+    // fdtdReference(host_output, input, coeff, dimx, dimy, dimz, radius,
     //              timesteps);
   }
   printf("fdtdReference complete\n");
