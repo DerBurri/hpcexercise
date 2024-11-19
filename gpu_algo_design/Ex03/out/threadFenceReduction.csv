@@ -1,4 +1,4 @@
-N,Blocks,Threads,Single-pass,Multi-pass,SingleGB/s,MultiGB/s
+N,Threads,Blocks,Single-pass,Multi-pass,SingleGB/s,MultiGB/s
 1,1,1,0.005510,0.000726,0.005510,0.000726
 1,1,1,0.005280,0.000758,0.005400,0.000741
 1,1,1,0.005310,0.000753,0.005310,0.000753
