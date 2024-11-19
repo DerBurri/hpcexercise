@@ -317,23 +317,13 @@ void shmoo(int minN, int maxN, int maxThreads, int maxBlocks) {
   sdkCreateTimer(&timer);
 
   // print headers
-  printf("N,Blocks,Threads,Single-pass,Multi-pass\n");
-
-  int lastNumBlocks = -1;
-  int lastNumThreads = -1;
+  printf("N,Blocks,Threads,Single-pass,Multi-pass,SingleGB/s,MultiGB/s\n");
 
   for (int i = minN; i <= maxN; i *= 2) {
     for (int numBlocks = 1; numBlocks <= maxBlocks; numBlocks *= 2) {
       int numThreads = 0;
       int j = 0;
       getNumBlocksAndThreads(i, numBlocks, maxThreads, j, numThreads);
-
-      if (numBlocks == lastNumBlocks && numThreads == lastNumThreads) {
-        continue;
-      }
-
-      lastNumBlocks = numBlocks;
-      lastNumThreads = numThreads;
 
       printf("%d,%d,%d,", i, numThreads, j);
       for (int multiPass = 0; multiPass <= 1; multiPass++) {
@@ -343,7 +333,9 @@ void shmoo(int minN, int maxN, int maxThreads, int maxBlocks) {
                         d_odata);
 
         float reduceTime = sdkGetAverageTimerValue(&timer);
-        printf("%f%s", reduceTime, multiPass == 0 ? "," : "\n");
+        float bandwidth = (i * sizeof(float)) / (reduceTime * 1.0e6);
+        printf("%f,%f%s", reduceTime, bandwidth, multiPass == 0 ? "," : "\n");
+        std::fflush(stdout);
       }
     }
   }
@@ -385,7 +377,6 @@ bool runTest(int argc, char **argv) {
 
   printf("%d elements\n", size);
   printf("%d threads (max)\n", maxThreads);
-
   cpuFinalReduction = checkCmdLineFlag(argc, (const char **)argv, "cpufinal");
   multipass = checkCmdLineFlag(argc, (const char **)argv, "multipass");
 
@@ -397,7 +388,11 @@ bool runTest(int argc, char **argv) {
   bool runShmoo = checkCmdLineFlag(argc, (const char **)argv, "shmoo");
 
   if (runShmoo) {
-    shmoo(1, 536870912, maxThreads, maxBlocks);
+    // Adjust maxN based on available global memory
+    size_t freeMem, totalMem;
+    checkCudaErrors(cudaMemGetInfo(&freeMem, &totalMem));
+    shmoo(1, (freeMem / sizeof(float) / 4), maxThreads, maxBlocks);
+
   } else {
     // create random input data on CPU
     unsigned int bytes = size * sizeof(float);
