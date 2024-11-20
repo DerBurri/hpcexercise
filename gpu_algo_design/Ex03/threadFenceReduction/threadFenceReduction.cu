@@ -325,7 +325,7 @@ void shmoo(int minN, int maxN, int maxThreads, int maxBlocks) {
       int j = 0;
       getNumBlocksAndThreads(i, numBlocks, maxThreads, j, numThreads);
 
-      printf("%d,%d,%d,", i, numThreads, j);
+      printf("%d,%d,%d,", i, j, numThreads);
       for (int multiPass = 0; multiPass <= 1; multiPass++) {
         sdkResetTimer(&timer);
         benchmarkReduce(i, numThreads, j, maxThreads, maxBlocks, testIterations,
