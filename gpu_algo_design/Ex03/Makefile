@@ -29,7 +29,7 @@ min: CFLAGS := -ccbin g++ -m64  -gencode arch=compute_89,code=sm_89
 min: clean
 min: ./bin/min_index
 
-build: $(OUT)
+build: min
 
 debug: CFLAGS += -DGPU_PROFILING=1 -DDEBUG=1
 debug: clean build
@@ -63,7 +63,7 @@ prof: clean build
 2080ti_prof: prof
 
 # Build rules
-bin/min_index: $(SRC)min_index.cu.cu
+bin/min_index: $(SRC)min_index.cu
 	$(NVCC) -t 4 $(CFLAGS) $(foreach dir,$(INCLUDE_DIRS),-I$(dir)) -o $@ $<
 
 # Clean rules

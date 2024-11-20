@@ -3,24 +3,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-__global__ void __lane_min_int(curandState *state) {
-  __shared__ int idx_min;
+__global__ void __warp_min_idx(curandState *state) {
+  int idx_min;
   int idx = threadIdx.x;
+  int min_value;
+  int min_index = idx;
 
   // Initialize cuRAND
-  curand_init(1234, idx, 0, &state[idx]);
+  int seed = 1234;
+  curand_init(seed, idx, 0, &state[idx]);
 
   // Generate a random positive integer
   int local_value = static_cast<int>(curand_uniform(&state[idx]) *
                                      1000);  // Random positive integer
   printf("Thread %d has value %d\n", idx, local_value);
-
-  int min_value = local_value;
-  int min_index = idx;
-
-  // Use __reduce_min_sync to find the minimum value in the warp
-  int warp_min_value = __reduce_min_sync(0xffffffff, local_value);
-  int warp_min_index = __reduce_min_sync(0xffffffff, idx);
+  min_value = local_value;
 
   // shuffle down to find the min value and its index
   for (int i = 16; i > 0; i /= 2) {
@@ -32,11 +29,11 @@ __global__ void __lane_min_int(curandState *state) {
     }
   }
 
-  if (threadIdx.x == 0) idx_min = min_index;
+  min_index = __shfl_sync(0xffffffff, min_index, 0);
   if (threadIdx.x == 0) {
-    printf("Lane index of the min value in warp using __shfl_down_sync is %d\n",
+    printf("Lane index of the min value in warp is %d\n",
            idx_min);
-    printf("Min value in warp using __shfl_down_sync is %d\n", min_value);
+    printf("Min value in warp is %d\n", min_value);
   }
 }
 
@@ -47,7 +44,7 @@ int main() {
   cudaMalloc(&d_state, 32 * sizeof(curandState));
 
   // Launch kernel
-  __lane_min_int<<<1, 32>>>(d_state);
+  __warp_min_idx<<<1, 32>>>(d_state);
   cudaError_t err = cudaGetLastError();
   if (err != cudaSuccess) {
     printf("CUDA Error: %s\n", cudaGetErrorString(err));
