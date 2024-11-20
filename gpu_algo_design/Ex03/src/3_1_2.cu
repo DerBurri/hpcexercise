@@ -4,7 +4,6 @@
 #include <stdlib.h>
 
 __global__ void __warp_min_idx(curandState *state) {
-  int idx_min;
   int idx = threadIdx.x;
   int min_value;
   int min_index = idx;
@@ -31,8 +30,7 @@ __global__ void __warp_min_idx(curandState *state) {
 
   min_index = __shfl_sync(0xffffffff, min_index, 0);
   if (threadIdx.x == 0) {
-    printf("Lane index of the min value in warp is %d\n",
-           idx_min);
+    printf("Lane index of the min value in warp is %d\n", min_index);
     printf("Min value in warp is %d\n", min_value);
   }
 }
