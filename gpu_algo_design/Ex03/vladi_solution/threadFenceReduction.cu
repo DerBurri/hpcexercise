@@ -280,7 +280,7 @@ float benchmarkReduce(int n, int numThreads, int numBlocks, int maxThreads,
 // for generating a "shmoo" plot showing the performance for each kernel
 // variation over a wide range of input sizes.
 ////////////////////////////////////////////////////////////////////////////////
-void shmoo(int minN, int maxN, int maxThreads, int maxBlocks) {
+void shmoo(int minN, int maxN, int maxThreads, int maxBlocks, bool multiPass) {
   // create random input data on CPU
   unsigned int bytes = maxN * sizeof(float);
 
@@ -316,24 +316,22 @@ void shmoo(int minN, int maxN, int maxThreads, int maxBlocks) {
   sdkCreateTimer(&timer);
 
   // print headers
-  printf("N, %d blocks one pass, %d blocks multipass\n", maxBlocks, maxBlocks);
+  printf("N, %d blocks %spass\n", maxBlocks, multiPass ? "multi" : "single");
 
   for (int i = minN; i <= maxN; i *= 2) {
     printf("%d, ", i);
 
-    for (int multiPass = 0; multiPass <= 1; multiPass++) {
-      sdkResetTimer(&timer);
-      int numBlocks = 0;
-      int numThreads = 0;
-      getNumBlocksAndThreads(i, maxBlocks, maxThreads, numBlocks, numThreads);
+    sdkResetTimer(&timer);
+    int numBlocks = 0;
+    int numThreads = 0;
+    getNumBlocksAndThreads(i, maxBlocks, maxThreads, numBlocks, numThreads);
 
-      benchmarkReduce(i, numThreads, numBlocks, maxThreads, maxBlocks,
-                      testIterations, multiPass == 1, false, 1, timer, h_odata,
-                      d_idata, d_odata);
+    benchmarkReduce(i, numThreads, numBlocks, maxThreads, maxBlocks,
+                    testIterations, multiPass, false, 1, timer, h_odata,
+                    d_idata, d_odata);
 
-      float reduceTime = sdkGetAverageTimerValue(&timer);
-      printf("%f%s", reduceTime, multiPass == 0 ? ", " : "\n");
-    }
+    float reduceTime = sdkGetAverageTimerValue(&timer);
+    printf("%f\n", reduceTime);
   }
 
   printf("\n");
@@ -385,7 +383,8 @@ bool runTest(int argc, char **argv) {
   bool runShmoo = checkCmdLineFlag(argc, (const char **)argv, "shmoo");
 
   if (runShmoo) {
-    shmoo(1, 33554432, maxThreads, maxBlocks);
+    shmoo(1, 33554432, maxThreads, maxBlocks, multipass);
+    bTestResult = true;
   } else {
     // create random input data on CPU
     unsigned int bytes = size * sizeof(float);
@@ -438,19 +437,21 @@ bool runTest(int argc, char **argv) {
                         cpuFinalThreshold, timer, h_odata, d_idata, d_odata);
 
     float reduceTime = sdkGetAverageTimerValue(&timer);
-    printf("Average time: %f ms\n", reduceTime);
-    printf("Bandwidth:    %f GB/s\n\n",
+    printf("benchmarkReduce-%s-%delems-%db-%dt, ", multipass ? "multipass" : "singlepass", size, numBlocks, numThreads);
+    printf("Average time= %f ms, ", reduceTime);
+    printf("Bandwidth= %f GB/s\n",
            (size * sizeof(int)) / (reduceTime * 1.0e6));
 
     // compute reference solution
     float cpu_result = reduceCPU<float>(h_idata, size);
 
-    printf("GPU result = %0.12f\n", gpu_result);
-    printf("CPU result = %0.12f\n", cpu_result);
+    printf("GPU result = %0.12f, ", gpu_result);
+    printf("CPU result = %0.12f,", cpu_result);
 
     double threshold = 1e-8 * size;
     double diff = abs((double)gpu_result - (double)cpu_result);
     bTestResult = (diff < threshold);
+    printf("Test successfull: %d\n", bTestResult ? 0 : 1);
 
     // cleanup
     sdkDeleteTimer(&timer);
