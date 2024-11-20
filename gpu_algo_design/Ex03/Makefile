@@ -25,11 +25,15 @@ CFLAGS_2080ti = -ccbin g++ -m64 -gencode arch=compute_75,code=sm_75 -diag-suppre
 all: clean build
 
 # Build targets
-min: CFLAGS := -ccbin g++ -m64  -gencode arch=compute_89,code=sm_89
-min: clean
-min: ./bin/min_index
+3_1_2: CFLAGS := -ccbin g++ -m64  -gencode arch=compute_89,code=sm_89
+3_1_2: clean
+3_1_2: ./bin/3_1_2
 
-build: $(OUT)
+3_1_1: CFLAGS := -ccbin g++ -m64  -gencode arch=compute_89,code=sm_89
+3_1_1: clean
+3_1_1: ./bin/3_1_1
+
+build: 3_1_1 3_1_2
 
 debug: CFLAGS += -DGPU_PROFILING=1 -DDEBUG=1
 debug: clean build
@@ -63,7 +67,10 @@ prof: clean build
 2080ti_prof: prof
 
 # Build rules
-bin/min_index: $(SRC)min_index.cu.cu
+bin/3_1_2: $(SRC)3_1_2.cu
+	$(NVCC) -t 4 $(CFLAGS) $(foreach dir,$(INCLUDE_DIRS),-I$(dir)) -o $@ $<
+
+bin/3_1_1: $(SRC)3_1_1.cu
 	$(NVCC) -t 4 $(CFLAGS) $(foreach dir,$(INCLUDE_DIRS),-I$(dir)) -o $@ $<
 
 # Clean rules

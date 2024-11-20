@@ -4,7 +4,6 @@
 #include <stdlib.h>
 
 __global__ void __lane_min_int(curandState *state) {
-  __shared__ int idx_min;
   int idx = threadIdx.x;
 
   // Initialize cuRAND
@@ -19,25 +18,24 @@ __global__ void __lane_min_int(curandState *state) {
   int min_index = idx;
 
   // Use __reduce_min_sync to find the minimum value in the warp
-  int warp_min_value = __reduce_min_sync(0xffffffff, local_value);
-  int warp_min_index = __reduce_min_sync(0xffffffff, idx);
+  // Disabled Code
+  //int warp_min_value = __reduce_min_sync(0xffffffff, local_value);
+  //int warp_min_index = __reduce_min_sync(0xffffffff, idx);
 
-  // shuffle down to find the min value and its index
-  for (int i = 16; i > 0; i /= 2) {
-    int temp_value = __shfl_down_sync(0xffffffff, min_value, i);
-    int temp_index = __shfl_down_sync(0xffffffff, min_index, i);
-    if (temp_value < min_value) {
-      min_value = temp_value;
-      min_index = temp_index;
-    }
-  }
+  // // shuffle down to find the min value and its index
+  // for (int i = 16; i > 0; i /= 2) {
+  //   //int temp_value = __shfl_down_sync(0xffffffff, min_value, i);
+  //   //int temp_index = __shfl_down_sync(0xffffffff, min_index, i);
+  //   if (temp_value < min_value) {
+  //     min_value = temp_value;
+  //     min_index = temp_index;
+  //   }
+  // }
+  int rotated_value = __shfl_sync(0xFFFFFFFF, local_value, (threadIdx.x -1 ) & (32 - 1));
 
-  if (threadIdx.x == 0) idx_min = min_index;
-  if (threadIdx.x == 0) {
-    printf("Lane index of the min value in warp using __shfl_down_sync is %d\n",
-           idx_min);
-    printf("Min value in warp using __shfl_down_sync is %d\n", min_value);
-  }
+  min_index = __shfl_sync(0xffffffff, min_index, 0);
+  printf("Thread %d, New Value %d Old Value %d\n",idx, rotated_value, local_value);
+
 }
 
 int main() {
