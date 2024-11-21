@@ -317,7 +317,8 @@ void shmoo(int minN, int maxN, int maxThreads, int maxBlocks) {
   sdkCreateTimer(&timer);
 
   // print headers
-  printf("N,Blocks,Threads,Single-pass,Multi-pass,SingleGB/s,MultiGB/s\n");
+  printf(
+      "N,nBytes,Blocks,Threads,Single-pass,SingleGB/s,Multi-pass,MultiGB/s\n");
 
   for (int i = minN; i <= maxN; i *= 2) {
     for (int numBlocks = 1; numBlocks <= maxBlocks; numBlocks *= 2) {
@@ -325,7 +326,8 @@ void shmoo(int minN, int maxN, int maxThreads, int maxBlocks) {
       int j = 0;
       getNumBlocksAndThreads(i, numBlocks, maxThreads, j, numThreads);
 
-      printf("%d,%d,%d,", i, j, numThreads);
+      printf("%d,%ld,%d,%d,", i, static_cast<unsigned long>(i * sizeof(float)),
+             j, numThreads);
       for (int multiPass = 0; multiPass <= 1; multiPass++) {
         sdkResetTimer(&timer);
         benchmarkReduce(i, numThreads, j, maxThreads, maxBlocks, testIterations,
@@ -333,7 +335,8 @@ void shmoo(int minN, int maxN, int maxThreads, int maxBlocks) {
                         d_odata);
 
         float reduceTime = sdkGetAverageTimerValue(&timer);
-        float bandwidth = (i * sizeof(float)) / (reduceTime * 1.0e6);
+        float bandwidth = static_cast<unsigned long>(i * sizeof(float)) /
+                          (reduceTime) / 1.0e6;
         printf("%f,%f%s", reduceTime, bandwidth, multiPass == 0 ? "," : "\n");
         std::fflush(stdout);
       }

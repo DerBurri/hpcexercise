@@ -7,5 +7,5 @@
 ##SBATCH --time=01:00:00
 
 echo "3.2"
-echo "" > out/threadFenceReduction.csv
-./threadFenceReduction/threadFenceReduction --shmoo --maxblocks=524288 >> out/threadFenceReduction.csv
+echo "" > ../out/threadFenceReduction.csv
+./threadFenceReduction --shmoo --maxblocks=524288 >> ../out/threadFenceReduction.csv
