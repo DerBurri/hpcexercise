@@ -67,6 +67,7 @@
 // Utilities and system includes
 #include <helper_cuda.h>
 #include <helper_functions.h>
+
 #include <algorithm>
 
 // includes, project
@@ -274,54 +275,50 @@ T benchmarkReduce(int n, int numThreads, int numBlocks, int maxThreads,
       // copy result from device to host
       checkCudaErrors(cudaMemcpy(h_odata, d_odata, numBlocks * sizeof(T),
                                  cudaMemcpyDeviceToHost));
-      
+
       for (int i = 0; i < numBlocks; i++) {
         gpu_result += h_odata[i];
       }
 
       needReadBack = false;
     } else {
-      
       // sum partial block sums on GPU
       int s = numBlocks;
       int kernel = whichKernel;
-
 
       if (kernel == 10 || kernel == 11) {
         checkCudaErrors(cudaMemcpy(h_odata, d_odata, 1 * sizeof(T),
                                    cudaMemcpyDeviceToHost));
         gpu_result = h_odata[0];
 
-      }
-      else {
-      while (s > cpuFinalThreshold) {
-        int threads = 0, blocks = 0;
-        getNumBlocksAndThreads(kernel, s, maxBlocks, maxThreads, blocks,
-                               threads);
-        checkCudaErrors(cudaMemcpy(d_intermediateSums, d_odata, s * sizeof(T),
-                                   cudaMemcpyDeviceToDevice));
-        reduce<T>(s, threads, blocks, kernel, d_intermediateSums, d_odata);
+      } else {
+        while (s > cpuFinalThreshold) {
+          int threads = 0, blocks = 0;
+          getNumBlocksAndThreads(kernel, s, maxBlocks, maxThreads, blocks,
+                                 threads);
+          checkCudaErrors(cudaMemcpy(d_intermediateSums, d_odata, s * sizeof(T),
+                                     cudaMemcpyDeviceToDevice));
+          reduce<T>(s, threads, blocks, kernel, d_intermediateSums, d_odata);
 
-        if (kernel < 3) {
-          s = (s + threads - 1) / threads;
-        } else {
-          s = (s + (threads * 2 - 1)) / (threads * 2);
-        }
-      }
-
-      if (s > 1) {
-        // copy result from device to host
-        checkCudaErrors(cudaMemcpy(h_odata, d_odata, s * sizeof(T),
-                                   cudaMemcpyDeviceToHost));
-
-        for (int i = 0; i < s; i++) {
-          gpu_result += h_odata[i];
+          if (kernel < 3) {
+            s = (s + threads - 1) / threads;
+          } else {
+            s = (s + (threads * 2 - 1)) / (threads * 2);
+          }
         }
 
-        needReadBack = false;
+        if (s > 1) {
+          // copy result from device to host
+          checkCudaErrors(cudaMemcpy(h_odata, d_odata, s * sizeof(T),
+                                     cudaMemcpyDeviceToHost));
+
+          for (int i = 0; i < s; i++) {
+            gpu_result += h_odata[i];
+          }
+
+          needReadBack = false;
+        }
       }
-    }
-    
     }
 
     cudaDeviceSynchronize();
@@ -433,7 +430,7 @@ void shmoo(int minN, int maxN, int maxThreads, int maxBlocks,
 
 template <class T>
 void shmooTwo(int minN, int maxN, int maxThreads, int maxBlocks,
-           ReduceType datatype) {
+              ReduceType datatype) {
   // create random input data on CPU
   unsigned int bytes = maxN * sizeof(T);
 
@@ -474,7 +471,7 @@ void shmooTwo(int minN, int maxN, int maxThreads, int maxBlocks,
   sdkCreateTimer(&timer);
 
   // print headers
-  printf("kernelNr,nElements,timeMs,BWGBs\n");
+  printf("kernelNr,nElements,nBytes,datatype,timeMs,BWGBs\n");
 
   for (int whichKernel = 10; whichKernel < 12; whichKernel++) {
     for (int N = minN; N <= maxN; N *= 2) {
@@ -487,8 +484,8 @@ void shmooTwo(int minN, int maxN, int maxThreads, int maxBlocks,
       float reduceTime;
       T gpu_result = 0;
       T *d_intermediateSums;
-      checkCudaErrors(cudaMalloc((void **)&d_intermediateSums, sizeof(T) * numBlocks));
-
+      checkCudaErrors(
+          cudaMalloc((void **)&d_intermediateSums, sizeof(T) * numBlocks));
 
       if (numBlocks <= MAX_BLOCK_DIM_SIZE) {
         for (int i = 0; i < TEST_ITERATIONS; ++i) {
@@ -503,15 +500,20 @@ void shmooTwo(int minN, int maxN, int maxThreads, int maxBlocks,
           // check if kernel execution generated an error
           getLastCudaError("Kernel execution failed");
 
-          checkCudaErrors(cudaMemcpy(h_odata, d_odata, 1 * sizeof(T),cudaMemcpyDeviceToHost));
+          checkCudaErrors(cudaMemcpy(h_odata, d_odata, 1 * sizeof(T),
+                                     cudaMemcpyDeviceToHost));
           gpu_result = h_odata[0];
           cudaDeviceSynchronize();
           sdkStopTimer(&timer);
         }
         checkCudaErrors(cudaFree(d_intermediateSums));
         reduceTime = sdkGetAverageTimerValue(&timer);
-        //print results kernelNr,nElements,timeMs,BWGBs
-        printf("%d,%d,%.5f,%.5f\n", whichKernel, N, reduceTime, ((double)bytes*1e-9) / reduceTime);
+        // print results kernelNr,nElements,timeMs,BWGBs
+        printf("%d,%d,%ld,%s,%.5f,%.5f\n", whichKernel, N,
+               (static_cast<unsigned int>(N) *
+                static_cast<unsigned int>(sizeof(T))),
+               typeid(T).name(), reduceTime,
+               ((double)bytes * 1e-9) / reduceTime);
         std::fflush(stdout);
       } else {
         exit(2);
@@ -528,7 +530,6 @@ void shmooTwo(int minN, int maxN, int maxThreads, int maxBlocks,
   checkCudaErrors(cudaFree(d_odata));
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 // The main function which runs the reduction test.
 ////////////////////////////////////////////////////////////////////////////////
@@ -537,12 +538,11 @@ bool runTest(int argc, char **argv, ReduceType datatype) {
   int size = 1 << 24;    // number of elements to reduce
   int maxThreads = 256;  // number of threads per block
   int whichKernel = 7;
-  //Number of Blocks used to fully use the RTX 4080 (76 SMs) (Maximum Resident blocks per SM) 
-  //Defined by CUDA Compute Capability 8.9
+  // Number of Blocks used to fully use the RTX 4080 (76 SMs) (Maximum Resident
+  // blocks per SM) Defined by CUDA Compute Capability 8.9
   int maxBlocks = 1824;
   bool cpuFinalReduction = false;
   int cpuFinalThreshold = 1;
-
 
   if (checkCmdLineFlag(argc, (const char **)argv, "n")) {
     size = getCmdLineArgumentInt(argc, (const char **)argv, "n");
@@ -573,7 +573,7 @@ bool runTest(int argc, char **argv, ReduceType datatype) {
   bool runShmoo = checkCmdLineFlag(argc, (const char **)argv, "shmoo");
 
   if (runShmoo) {
-    shmooTwo<T>(2<<19, size, maxThreads, maxBlocks, datatype);
+    shmooTwo<T>(2 << 19, size, maxThreads, maxBlocks, datatype);
   } else {
     // create random input data on CPU
     unsigned int bytes = size * sizeof(T);
@@ -591,7 +591,8 @@ bool runTest(int argc, char **argv, ReduceType datatype) {
 
     int numBlocks = 0;
     int numThreads = 0;
-    getNumBlocksAndThreads(whichKernel, size, maxBlocks, maxThreads, numBlocks, numThreads);
+    getNumBlocksAndThreads(whichKernel, size, maxBlocks, maxThreads, numBlocks,
+                           numThreads);
 
     if (numBlocks == 1) {
       cpuFinalThreshold = 1;
