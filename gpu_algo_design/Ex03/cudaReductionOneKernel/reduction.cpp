@@ -72,6 +72,10 @@
 // includes, project
 #include "reduction.h"
 
+#ifndef TEST_ITERATIONS
+#define TEST_ITERATIONS 100
+#endif
+
 enum ReduceType { REDUCE_INT, REDUCE_FLOAT, REDUCE_DOUBLE };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -252,9 +256,11 @@ T benchmarkReduce(int n, int numThreads, int numBlocks, int maxThreads,
       cudaMalloc((void **)&d_intermediateSums, sizeof(T) * numBlocks));
 
   for (int i = 0; i < testIterations; ++i) {
+    //! reset output data
+    cudaMemset(d_odata, 0, sizeof(T));
+    cudaDeviceSynchronize();
     gpu_result = 0;
 
-    cudaDeviceSynchronize();
     sdkStartTimer(&timer);
 
     // execute the kernel
@@ -268,7 +274,7 @@ T benchmarkReduce(int n, int numThreads, int numBlocks, int maxThreads,
       // copy result from device to host
       checkCudaErrors(cudaMemcpy(h_odata, d_odata, numBlocks * sizeof(T),
                                  cudaMemcpyDeviceToHost));
-
+      
       for (int i = 0; i < numBlocks; i++) {
         gpu_result += h_odata[i];
       }
@@ -281,10 +287,11 @@ T benchmarkReduce(int n, int numThreads, int numBlocks, int maxThreads,
       int kernel = whichKernel;
 
 
-      if (kernel == 7) {
+      if (kernel == 10 || kernel == 11) {
         checkCudaErrors(cudaMemcpy(h_odata, d_odata, 1 * sizeof(T),
                                    cudaMemcpyDeviceToHost));
         gpu_result = h_odata[0];
+
       }
       else {
       while (s > cpuFinalThreshold) {
@@ -375,7 +382,7 @@ void shmoo(int minN, int maxN, int maxThreads, int maxBlocks,
     reduce<T>(maxN, maxThreads, maxNumBlocks, kernel, d_idata, d_odata);
   }
 
-  int testIterations = 100;
+  int testIterations = TEST_ITERATIONS;
 
   StopWatchInterface *timer = 0;
   sdkCreateTimer(&timer);
@@ -424,6 +431,104 @@ void shmoo(int minN, int maxN, int maxThreads, int maxBlocks,
   checkCudaErrors(cudaFree(d_odata));
 }
 
+template <class T>
+void shmooTwo(int minN, int maxN, int maxThreads, int maxBlocks,
+           ReduceType datatype) {
+  // create random input data on CPU
+  unsigned int bytes = maxN * sizeof(T);
+
+  T *h_idata = (T *)malloc(bytes);
+
+  for (int i = 0; i < maxN; i++) {
+    // Keep the numbers small so we don't get truncation error in the sum
+    if (datatype == REDUCE_INT) {
+      h_idata[i] = (T)(rand() & 0xFF);
+    } else {
+      h_idata[i] = (rand() & 0xFF) / (T)RAND_MAX;
+    }
+  }
+
+  int maxNumBlocks = MIN(maxN / maxThreads, MAX_BLOCK_DIM_SIZE);
+
+  // allocate mem for the result on host side
+  T *h_odata = (T *)malloc(maxNumBlocks * sizeof(T));
+
+  // allocate device memory and data
+  T *d_idata = NULL;
+  T *d_odata = NULL;
+
+  checkCudaErrors(cudaMalloc((void **)&d_idata, bytes));
+  checkCudaErrors(cudaMalloc((void **)&d_odata, maxNumBlocks * sizeof(T)));
+
+  // copy data directly to device memory
+  checkCudaErrors(cudaMemcpy(d_idata, h_idata, bytes, cudaMemcpyHostToDevice));
+  checkCudaErrors(cudaMemcpy(d_odata, h_idata, maxNumBlocks * sizeof(T),
+                             cudaMemcpyHostToDevice));
+
+  // warm-up
+  for (int whichKernel = 10; whichKernel < 12; whichKernel++) {
+    reduce<T>(maxN, maxThreads, maxNumBlocks, whichKernel, d_idata, d_odata);
+  }
+
+  StopWatchInterface *timer = 0;
+  sdkCreateTimer(&timer);
+
+  // print headers
+  printf("kernelNr,nElements,timeMs,BWGBs\n");
+
+  for (int whichKernel = 10; whichKernel < 12; whichKernel++) {
+    for (int N = minN; N <= maxN; N *= 2) {
+      sdkResetTimer(&timer);
+      int numBlocks = 0;
+      int numThreads = 0;
+      getNumBlocksAndThreads(whichKernel, N, maxBlocks, maxThreads, numBlocks,
+                             numThreads);
+
+      float reduceTime;
+      T gpu_result = 0;
+      T *d_intermediateSums;
+      checkCudaErrors(cudaMalloc((void **)&d_intermediateSums, sizeof(T) * numBlocks));
+
+
+      if (numBlocks <= MAX_BLOCK_DIM_SIZE) {
+        for (int i = 0; i < TEST_ITERATIONS; ++i) {
+          //! reset output data
+          cudaMemset(d_odata, 0, sizeof(T));
+          cudaDeviceSynchronize();
+          gpu_result = 0;
+          sdkStartTimer(&timer);
+
+          reduce<T>(N, numThreads, numBlocks, whichKernel, d_idata, d_odata);
+
+          // check if kernel execution generated an error
+          getLastCudaError("Kernel execution failed");
+
+          checkCudaErrors(cudaMemcpy(h_odata, d_odata, 1 * sizeof(T),cudaMemcpyDeviceToHost));
+          gpu_result = h_odata[0];
+          cudaDeviceSynchronize();
+          sdkStopTimer(&timer);
+        }
+        checkCudaErrors(cudaFree(d_intermediateSums));
+        reduceTime = sdkGetAverageTimerValue(&timer);
+        //print results kernelNr,nElements,timeMs,BWGBs
+        printf("%d,%d,%.5f,%.5f\n", whichKernel, N, reduceTime, ((double)bytes*1e-9) / reduceTime);
+        std::fflush(stdout);
+      } else {
+        exit(2);
+      }
+    }
+  }
+
+  // cleanup
+  sdkDeleteTimer(&timer);
+  free(h_idata);
+  free(h_odata);
+
+  checkCudaErrors(cudaFree(d_idata));
+  checkCudaErrors(cudaFree(d_odata));
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 // The main function which runs the reduction test.
 ////////////////////////////////////////////////////////////////////////////////
@@ -468,7 +573,7 @@ bool runTest(int argc, char **argv, ReduceType datatype) {
   bool runShmoo = checkCmdLineFlag(argc, (const char **)argv, "shmoo");
 
   if (runShmoo) {
-    shmoo<T>(1, 33554432, maxThreads, maxBlocks, datatype);
+    shmooTwo<T>(2<<19, size, maxThreads, maxBlocks, datatype);
   } else {
     // create random input data on CPU
     unsigned int bytes = size * sizeof(T);
@@ -486,8 +591,7 @@ bool runTest(int argc, char **argv, ReduceType datatype) {
 
     int numBlocks = 0;
     int numThreads = 0;
-    getNumBlocksAndThreads(whichKernel, size, maxBlocks, maxThreads, numBlocks,
-                           numThreads);
+    getNumBlocksAndThreads(whichKernel, size, maxBlocks, maxThreads, numBlocks, numThreads);
 
     if (numBlocks == 1) {
       cpuFinalThreshold = 1;

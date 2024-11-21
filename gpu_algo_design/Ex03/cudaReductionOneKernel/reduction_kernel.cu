@@ -34,10 +34,8 @@
 
 #include <cooperative_groups.h>
 #include <cooperative_groups/reduce.h>
-
 #include <helper_cuda.h>
 #include <helper_functions.h>
-
 #include <stdio.h>
 
 namespace cg = cooperative_groups;
@@ -432,8 +430,9 @@ __global__ void reduce6(T *g_idata, T *g_odata, unsigned int n) {
 }
 
 template <typename T, unsigned int blockSize, bool nIsPow2>
-__global__ void reduce7(const T *__restrict__ g_idata, T *__restrict__ g_odata,
-                        unsigned int n) {
+__global__ void reduce10(const T *__restrict__ g_idata, T *__restrict__ g_odata,
+                         unsigned int n) {
+  cg::grid_group grid = cg::this_grid();
   T *sdata = SharedMemory<T>();
 
   // perform first level of reduction,
@@ -457,9 +456,13 @@ __global__ void reduce7(const T *__restrict__ g_idata, T *__restrict__ g_odata,
       mySum += g_idata[i];
       // ensure we don't read out of bounds -- this is optimized away for
       // powerOf2 sized arrays
-      if ((i + blockSize) < n) {
-        mySum += g_idata[i + blockSize];
-      }
+
+      //! got rid of unneccessary if statement:
+      // if ((i + blockSize) < n) {
+      // mySum += g_idata[i + blockSize];
+      // }
+      mySum += g_idata[i + blockSize];
+
       i += gridSize;
     }
   } else {
@@ -490,22 +493,137 @@ __global__ void reduce7(const T *__restrict__ g_idata, T *__restrict__ g_odata,
     // SM 8.0
     mySum = warpReduceSum<T>(ballot_result, mySum);
   }
-  
+
   // write result for this block to global mem
   if (tid == 0) {
     g_odata[blockIdx.x] = mySum;
   }
-  // Synchronize all blocks
-  cg::grid_group grid = cg::this_grid();
+
+  // Synchronize all blocks in grid
   grid.sync();
 
-  if (blockIdx.x == 0){
-    //blockReduce
+  //! Final reduction from all blocks with ony thread only
+  // if (blockIdx.x == 0 && threadIdx.x == 0) {
+  //   printf("Block0, Thread0 starting to do the last reduce pass now.\n");
+
+  //   T mySum = 0;
+  //   for (int i = 0; i < gridDim.x; i++) {  // Simple sequential sum
+  //     mySum += g_odata[i];
+  //   }
+  //   g_odata[0] = mySum;  // Store final result in the first element
+  // }
+
+  // ! Final reduction from all blocks with one complete block, about 10% faster
+  if (blockIdx.x == 0) {
+    // if (threadIdx.x == 0) {
+    //   printf("Block 0 starting to do the last reduce pass now.\n");
+    // }
+
+    __shared__ T sdata[blockSize];
+
+    // Load and initial reduction
     T mySum = 0;
     for (int i = threadIdx.x; i < gridDim.x; i += blockDim.x) {
       mySum += g_odata[i];
     }
-    g_odata[blockIdx.x] = mySum; 
+
+    // Use warpReduceSum within each warp first
+    unsigned int mask = 0xffffffff;  // Full warp mask
+    mySum = warpReduceSum<T>(mask, mySum);
+
+    // Each thread in the first lane of each warp stores its warp-reduced sum
+    if ((threadIdx.x % warpSize) == 0) {
+      sdata[threadIdx.x / warpSize] = mySum;
+    }
+    __syncthreads();
+
+    // Reduce the warp-level sums
+    const unsigned int shmem_extent =
+        (blockDim.x / warpSize) > 0 ? (blockDim.x / warpSize) : 1;
+    const unsigned int ballot_result =
+        __ballot_sync(mask, threadIdx.x < shmem_extent);
+
+    if (threadIdx.x < shmem_extent) {
+      mySum = sdata[threadIdx.x];
+      // Use warpReduceSum again to finalize the reduction
+      mySum = warpReduceSum<T>(ballot_result, mySum);
+    }
+
+    // The first thread writes the final result
+    if (threadIdx.x == 0) {
+      g_odata[0] = mySum;
+    }
+  }
+}
+
+template <typename T, unsigned int blockSize, bool nIsPow2>
+__global__ void reduce11(const T *__restrict__ g_idata, T *__restrict__ g_odata,
+                         unsigned int n) {
+  cg::grid_group grid = cg::this_grid();
+  T *sdata = SharedMemory<T>();
+
+  // perform first level of reduction,
+  // reading from global memory, writing to shared memory
+  unsigned int tid = threadIdx.x;
+  unsigned int gridSize = blockSize * gridDim.x;
+  unsigned int maskLength = (blockSize & 31);  // 31 = warpSize-1
+  maskLength = (maskLength > 0) ? (32 - maskLength) : maskLength;
+  const unsigned int mask = (0xffffffff) >> maskLength;
+
+  T mySum = 0;
+
+  // we reduce multiple elements per thread.  The number is determined by the
+  // number of active thread blocks (via gridDim).  More blocks will result
+  // in a larger gridSize and therefore fewer elements per thread
+  if (nIsPow2) {
+    unsigned int i = blockIdx.x * blockSize * 2 + threadIdx.x;
+    gridSize = gridSize << 1;
+
+    while (i < n) {
+      mySum += g_idata[i];
+      // ensure we don't read out of bounds -- this is optimized away for
+      // powerOf2 sized arrays
+
+      //! got rid of unneccessary if statement:
+      // if ((i + blockSize) < n) {
+      // mySum += g_idata[i + blockSize];
+      // }
+      mySum += g_idata[i + blockSize];
+
+      i += gridSize;
+    }
+  } else {
+    unsigned int i = blockIdx.x * blockSize + threadIdx.x;
+    while (i < n) {
+      mySum += g_idata[i];
+      i += gridSize;
+    }
+  }
+
+  // Reduce within warp using shuffle or reduce_add if T==int & CUDA_ARCH ==
+  // SM 8.0
+  mySum = warpReduceSum<T>(mask, mySum);
+
+  // each thread puts its local sum into shared memory
+  if ((tid % warpSize) == 0) {
+    sdata[tid / warpSize] = mySum;
+  }
+
+  __syncthreads();
+
+  const unsigned int shmem_extent =
+      (blockSize / warpSize) > 0 ? (blockSize / warpSize) : 1;
+  const unsigned int ballot_result = __ballot_sync(mask, tid < shmem_extent);
+  if (tid < shmem_extent) {
+    mySum = sdata[tid];
+    // Reduce final warp using shuffle or reduce_add if T==int & CUDA_ARCH ==
+    // SM 8.0
+    mySum = warpReduceSum<T>(ballot_result, mySum);
+  }
+
+  // Final reduce as atomic operation
+  if (threadIdx.x == 0) {
+    auto re = atomicAdd(&g_odata[0], mySum);
   }
 }
 
@@ -583,7 +701,7 @@ __global__ void multi_warp_cg_reduce(T *g_idata, T *g_odata, unsigned int n) {
   // we reduce multiple elements per thread.  The number is determined by the
   // number of active thread blocks (via gridDim).  More blocks will result
   // in a larger gridSize and therefore fewer elements per thread
-  int nIsPow2 = !(n & n-1);
+  int nIsPow2 = !(n & n - 1);
   if (nIsPow2) {
     unsigned int i = blockIdx.x * BlockSize * 2 + threadIdx.x;
     gridSize = gridSize << 1;
@@ -614,7 +732,7 @@ __global__ void multi_warp_cg_reduce(T *g_idata, T *g_odata, unsigned int n) {
 
   if (threadIdx.x == 0) {
     threadVal = 0;
-    for (int i=0; i < multiWarpTile.meta_group_size(); i++) {
+    for (int i = 0; i < multiWarpTile.meta_group_size(); i++) {
       threadVal += sdata[i];
     }
     g_odata[blockIdx.x] = threadVal;
@@ -631,8 +749,9 @@ void reduce(int size, int threads, int blocks, int whichKernel, T *d_idata,
             T *d_odata) {
   dim3 dimBlock(threads, 1, 1);
   dim3 dimGrid(blocks, 1, 1);
-
-  void* kernelArgs[3];
+  int numBlocks;
+  void *kernelArgs[3];
+  constexpr int numOfMultiWarpGroups = 2;
 
   // when there is only one warp per block, we need to allocate two warps
   // worth of shared memory so that we don't index shared memory out of bounds
@@ -641,8 +760,7 @@ void reduce(int size, int threads, int blocks, int whichKernel, T *d_idata,
 
   // as kernel 9 - multi_warp_cg_reduce cannot work for more than 64 threads
   // we choose to set kernel 7 for this purpose.
-  if (threads < 64 && whichKernel == 9)
-  {
+  if (threads < 64 && whichKernel == 9) {
     whichKernel = 7;
   }
 
@@ -884,95 +1002,136 @@ void reduce(int size, int threads, int blocks, int whichKernel, T *d_idata,
       break;
 
     case 7:
+      printf("Kernel 7 is not supported in this version of the code.\n");
+      exit(7);
+      break;
+    case 8:
+      cg_reduce<T><<<dimGrid, dimBlock, smemSize>>>(d_idata, d_odata, size);
+      break;
+    case 9:
+      smemSize = numOfMultiWarpGroups * sizeof(T);
+      switch (threads) {
+        case 1024:
+          multi_warp_cg_reduce<T, 1024, 1024 / numOfMultiWarpGroups>
+              <<<dimGrid, dimBlock, smemSize>>>(d_idata, d_odata, size);
+          break;
+
+        case 512:
+          multi_warp_cg_reduce<T, 512, 512 / numOfMultiWarpGroups>
+              <<<dimGrid, dimBlock, smemSize>>>(d_idata, d_odata, size);
+          break;
+
+        case 256:
+          multi_warp_cg_reduce<T, 256, 256 / numOfMultiWarpGroups>
+              <<<dimGrid, dimBlock, smemSize>>>(d_idata, d_odata, size);
+          break;
+
+        case 128:
+          multi_warp_cg_reduce<T, 128, 128 / numOfMultiWarpGroups>
+              <<<dimGrid, dimBlock, smemSize>>>(d_idata, d_odata, size);
+          break;
+
+        case 64:
+          multi_warp_cg_reduce<T, 64, 64 / numOfMultiWarpGroups>
+              <<<dimGrid, dimBlock, smemSize>>>(d_idata, d_odata, size);
+          break;
+
+        default:
+          printf(
+              "thread block size of < 64 is not supported for this kernel\n");
+          break;
+      }
+    case 10:
       // For reduce7 kernel we require only blockSize/warpSize
       // number of elements in shared memory
       smemSize = ((threads / 32) + 1) * sizeof(T);
       kernelArgs[0] = &d_idata;
       kernelArgs[1] = &d_odata;
       kernelArgs[2] = &size;
-      int numBlocks;
-      #define CALL_REDUCE7_KERNEL(blockSize, isPow2 ) \
-        case blockSize: \
-        cudaOccupancyMaxActiveBlocksPerMultiprocessor(&numBlocks, \
-                                                      (void*) reduce7<T, blockSize, isPow2>, \
-                                                      dimBlock.x, \
-                                                      smemSize); \
-        printf("Starting configuration blocks: %d, threads: %d\n", numBlocks, dimBlock.x); \
-        cudaLaunchCooperativeKernel( \
-            (void*) reduce7<T, blockSize, isPow2>, \
-            numBlocks, \
-            dimBlock, \
-            kernelArgs, \
-            smemSize, \
-            0); \
-          break; \
+      numBlocks = 0;
+#define CALL_REDUCE10_KERNEL(blockSize, isPow2)                                \
+  case blockSize:                                                              \
+    cudaOccupancyMaxActiveBlocksPerMultiprocessor(                             \
+        &numBlocks, (void *)reduce10<T, blockSize, isPow2>, dimBlock.x,        \
+        smemSize);                                                             \
+    cudaLaunchCooperativeKernel((void *)reduce10<T, blockSize, isPow2>,        \
+                                numBlocks, dimBlock, kernelArgs, smemSize, 0); \
+    break;
 
       if (isPow2(size)) {
         switch (threads) {
-            CALL_REDUCE7_KERNEL(1024, true);
-            CALL_REDUCE7_KERNEL(512, true);
-            CALL_REDUCE7_KERNEL(256, true);
-            CALL_REDUCE7_KERNEL(128,true);
-            CALL_REDUCE7_KERNEL(64,true);
-            CALL_REDUCE7_KERNEL(32,true);
-            CALL_REDUCE7_KERNEL(16,true);
-            CALL_REDUCE7_KERNEL(8, true);
-            CALL_REDUCE7_KERNEL(4, true);
-            CALL_REDUCE7_KERNEL(2, true);
-            CALL_REDUCE7_KERNEL(1, true);
+          CALL_REDUCE10_KERNEL(1024, true);
+          CALL_REDUCE10_KERNEL(512, true);
+          CALL_REDUCE10_KERNEL(256, true);
+          CALL_REDUCE10_KERNEL(128, true);
+          CALL_REDUCE10_KERNEL(64, true);
+          CALL_REDUCE10_KERNEL(32, true);
+          CALL_REDUCE10_KERNEL(16, true);
+          CALL_REDUCE10_KERNEL(8, true);
+          CALL_REDUCE10_KERNEL(4, true);
+          CALL_REDUCE10_KERNEL(2, true);
+          CALL_REDUCE10_KERNEL(1, true);
         }
       } else {
         switch (threads) {
-            CALL_REDUCE7_KERNEL(1024, true);
-            CALL_REDUCE7_KERNEL(512, false);
-            CALL_REDUCE7_KERNEL(256, false);
-            CALL_REDUCE7_KERNEL(128, false);
-            CALL_REDUCE7_KERNEL(64, false);
-            CALL_REDUCE7_KERNEL(32, false);
-            CALL_REDUCE7_KERNEL(16, false);
-            CALL_REDUCE7_KERNEL(8, false);
-            CALL_REDUCE7_KERNEL(4, false);
-            CALL_REDUCE7_KERNEL(2, false);
-            CALL_REDUCE7_KERNEL(1, false);
+          CALL_REDUCE10_KERNEL(1024, true);
+          CALL_REDUCE10_KERNEL(512, false);
+          CALL_REDUCE10_KERNEL(256, false);
+          CALL_REDUCE10_KERNEL(128, false);
+          CALL_REDUCE10_KERNEL(64, false);
+          CALL_REDUCE10_KERNEL(32, false);
+          CALL_REDUCE10_KERNEL(16, false);
+          CALL_REDUCE10_KERNEL(8, false);
+          CALL_REDUCE10_KERNEL(4, false);
+          CALL_REDUCE10_KERNEL(2, false);
+          CALL_REDUCE10_KERNEL(1, false);
         }
       }
 
       break;
-    case 8:
-      cg_reduce<T><<<dimGrid, dimBlock, smemSize>>>(d_idata, d_odata, size);
-      break;
-    case 9:
-      constexpr int numOfMultiWarpGroups = 2;
-      smemSize = numOfMultiWarpGroups * sizeof(T);
-      switch (threads) {
-        case 1024:
-          multi_warp_cg_reduce<T, 1024, 1024/numOfMultiWarpGroups>
-            <<<dimGrid, dimBlock, smemSize>>>(d_idata, d_odata, size);
-          break;
+    case 11:
+      smemSize = ((threads / 32) + 1) * sizeof(T);
+      kernelArgs[0] = &d_idata;
+      kernelArgs[1] = &d_odata;
+      kernelArgs[2] = &size;
+      numBlocks = 0;
+#define CALL_REDUCE11_KERNEL(blockSize, isPow2)                                \
+  case blockSize:                                                              \
+    cudaOccupancyMaxActiveBlocksPerMultiprocessor(                             \
+        &numBlocks, (void *)reduce11<T, blockSize, isPow2>, dimBlock.x,        \
+        smemSize);                                                             \
+    cudaLaunchCooperativeKernel((void *)reduce11<T, blockSize, isPow2>,        \
+                                numBlocks, dimBlock, kernelArgs, smemSize, 0); \
+    break;
 
-        case 512:
-          multi_warp_cg_reduce<T, 512, 512/numOfMultiWarpGroups>
-              <<<dimGrid, dimBlock, smemSize>>>(d_idata, d_odata, size);
-          break;
-
-        case 256:
-          multi_warp_cg_reduce<T, 256, 256/numOfMultiWarpGroups>
-              <<<dimGrid, dimBlock, smemSize>>>(d_idata, d_odata, size);
-          break;
-
-        case 128:
-          multi_warp_cg_reduce<T, 128, 128/numOfMultiWarpGroups>
-              <<<dimGrid, dimBlock, smemSize>>>(d_idata, d_odata, size);
-          break;
-
-        case 64:
-          multi_warp_cg_reduce<T, 64, 64/numOfMultiWarpGroups>
-              <<<dimGrid, dimBlock, smemSize>>>(d_idata, d_odata, size);
-          break;
-
-        default:
-          printf("thread block size of < 64 is not supported for this kernel\n");
-          break;
+      if (isPow2(size)) {
+        switch (threads) {
+          CALL_REDUCE11_KERNEL(1024, true);
+          CALL_REDUCE11_KERNEL(512, true);
+          CALL_REDUCE11_KERNEL(256, true);
+          CALL_REDUCE11_KERNEL(128, true);
+          CALL_REDUCE11_KERNEL(64, true);
+          CALL_REDUCE11_KERNEL(32, true);
+          CALL_REDUCE11_KERNEL(16, true);
+          CALL_REDUCE11_KERNEL(8, true);
+          CALL_REDUCE11_KERNEL(4, true);
+          CALL_REDUCE11_KERNEL(2, true);
+          CALL_REDUCE11_KERNEL(1, true);
+        }
+      } else {
+        switch (threads) {
+          CALL_REDUCE11_KERNEL(1024, true);
+          CALL_REDUCE11_KERNEL(512, false);
+          CALL_REDUCE11_KERNEL(256, false);
+          CALL_REDUCE11_KERNEL(128, false);
+          CALL_REDUCE11_KERNEL(64, false);
+          CALL_REDUCE11_KERNEL(32, false);
+          CALL_REDUCE11_KERNEL(16, false);
+          CALL_REDUCE11_KERNEL(8, false);
+          CALL_REDUCE11_KERNEL(4, false);
+          CALL_REDUCE11_KERNEL(2, false);
+          CALL_REDUCE11_KERNEL(1, false);
+        }
       }
       break;
   }
