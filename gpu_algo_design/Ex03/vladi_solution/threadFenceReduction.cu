@@ -199,8 +199,8 @@ float benchmarkReduce(int n, int numThreads, int numBlocks, int maxThreads,
     unsigned int retCnt = 0;
 
     // Set the global accumulator back to 0
-    error = cudaMemcpyToSymbol(globalAcc, &gpu_result, sizeof(float), 0, cudaMemcpyHostToDevice); 
-    checkCudaErrors(error);
+    //error = cudaMemcpyToSymbol(globalAcc, &gpu_result, sizeof(float), 0, cudaMemcpyHostToDevice); 
+    //checkCudaErrors(error);
 
     error = setRetirementCount(retCnt);
     checkCudaErrors(error);
@@ -257,8 +257,8 @@ float benchmarkReduce(int n, int numThreads, int numBlocks, int maxThreads,
       getLastCudaError("Kernel execution failed");
 
       // execute the kernel
-      //reduceSinglePass(n, numThreads, numBlocks, d_idata, d_odata);
-      reduceSpeciale<float>(n, numThreads, numBlocks, d_idata, d_odata, dev_num);
+      reduceSinglePass(n, numThreads, numBlocks, d_idata, d_odata);
+      //reduceSpeciale<float>(n, numThreads, numBlocks, d_idata, d_odata, dev_num);
 
       // check if kernel execution generated an error
       getLastCudaError("Kernel execution failed");
@@ -270,8 +270,8 @@ float benchmarkReduce(int n, int numThreads, int numBlocks, int maxThreads,
 
   if (bNeedReadback) {
     // copy final sum from device to host
-    //error = cudaMemcpy(&gpu_result, d_odata, sizeof(float), cudaMemcpyDeviceToHost);
-    error = cudaMemcpyFromSymbol(&gpu_result, globalAcc, sizeof(float), 0, cudaMemcpyDeviceToHost); 
+    error = cudaMemcpy(&gpu_result, d_odata, sizeof(float), cudaMemcpyDeviceToHost);
+    //error = cudaMemcpyFromSymbol(&gpu_result, globalAcc, sizeof(float), 0, cudaMemcpyDeviceToHost); 
     checkCudaErrors(error);
   }
 
@@ -298,8 +298,8 @@ bool runTest(int argc, char **argv, int dev_num) {
     maxThreads = getCmdLineArgumentInt(argc, (const char **)argv, "threads");
   }
 
-  if (checkCmdLineFlag(argc, (const char **)argv, "maxblocks")) {
-    maxBlocks = getCmdLineArgumentInt(argc, (const char **)argv, "maxblocks");
+  if (checkCmdLineFlag(argc, (const char **)argv, "blocks")) {
+    maxBlocks = getCmdLineArgumentInt(argc, (const char **)argv, "blocks");
   }
 
   printf("%d elements\n", size);
