@@ -286,6 +286,7 @@ T benchmarkReduce(int n, int numThreads, int numBlocks, int maxThreads,
       int s = numBlocks;
       int kernel = whichKernel;
 
+      //! for new kernels just read the data from d_odata[0]
       if (kernel == 10 || kernel == 11) {
         checkCudaErrors(cudaMemcpy(h_odata, d_odata, 1 * sizeof(T),
                                    cudaMemcpyDeviceToHost));
@@ -470,7 +471,7 @@ void shmooTwo(int minN, int maxN, int maxThreads, int maxBlocks,
   StopWatchInterface *timer = 0;
   sdkCreateTimer(&timer);
 
-  // print headers
+  // print csvheaders
   printf("kernelNr,nElements,nBytes,datatype,timeMs,BWGBs\n");
 
   for (int whichKernel = 10; whichKernel < 12; whichKernel++) {
@@ -488,8 +489,9 @@ void shmooTwo(int minN, int maxN, int maxThreads, int maxBlocks,
           cudaMalloc((void **)&d_intermediateSums, sizeof(T) * numBlocks));
 
       if (numBlocks <= MAX_BLOCK_DIM_SIZE) {
+        //! inline the benchmarking function
         for (int i = 0; i < TEST_ITERATIONS; ++i) {
-          //! reset output data
+          // reset output data
           cudaMemset(d_odata, 0, sizeof(T));
           cudaDeviceSynchronize();
           gpu_result = 0;
@@ -573,7 +575,9 @@ bool runTest(int argc, char **argv, ReduceType datatype) {
   bool runShmoo = checkCmdLineFlag(argc, (const char **)argv, "shmoo");
 
   if (runShmoo) {
-    shmooTwo<T>(2 << 19, size, maxThreads, maxBlocks, datatype);
+    //! replaced shmoo with shmooTwo, which only runs our new kernels (10, 11)
+    // run from 100MB to parameter size
+    shmooTwo<T>(10 * (2 << 20), size, maxThreads, maxBlocks, datatype);
   } else {
     // create random input data on CPU
     unsigned int bytes = size * sizeof(T);

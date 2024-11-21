@@ -316,7 +316,7 @@ void shmoo(int minN, int maxN, int maxThreads, int maxBlocks) {
   StopWatchInterface *timer = NULL;
   sdkCreateTimer(&timer);
 
-  // print headers
+  // print csv headers
   printf(
       "N,nBytes,Blocks,Threads,Single-pass,SingleGB/s,Multi-pass,MultiGB/s\n");
 
@@ -391,9 +391,12 @@ bool runTest(int argc, char **argv) {
   bool runShmoo = checkCmdLineFlag(argc, (const char **)argv, "shmoo");
 
   if (runShmoo) {
+    // Call rewritten shmoo functinon for complete benchmark
     // Adjust maxN based on available global memory
     size_t freeMem, totalMem;
     checkCudaErrors(cudaMemGetInfo(&freeMem, &totalMem));
+    // this maxN was empirically determined to be the largest power of 2 that
+    // could still run without errors
     shmoo(1, (freeMem / sizeof(float) / 4), maxThreads, maxBlocks);
 
   } else {

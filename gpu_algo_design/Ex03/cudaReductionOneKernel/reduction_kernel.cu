@@ -429,9 +429,11 @@ __global__ void reduce6(T *g_idata, T *g_odata, unsigned int n) {
   if (cta.thread_rank() == 0) g_odata[blockIdx.x] = mySum;
 }
 
+//! new kernel for 3.3.1
 template <typename T, unsigned int blockSize, bool nIsPow2>
 __global__ void reduce10(const T *__restrict__ g_idata, T *__restrict__ g_odata,
                          unsigned int n) {
+  // start grid for syncing across whole grid later
   cg::grid_group grid = cg::this_grid();
   T *sdata = SharedMemory<T>();
 
@@ -457,7 +459,7 @@ __global__ void reduce10(const T *__restrict__ g_idata, T *__restrict__ g_odata,
       // ensure we don't read out of bounds -- this is optimized away for
       // powerOf2 sized arrays
 
-      //! got rid of unneccessary if statement:
+      //! got rid of unnecessary if statement from original code:
       // if ((i + blockSize) < n) {
       // mySum += g_idata[i + blockSize];
       // }
@@ -513,7 +515,8 @@ __global__ void reduce10(const T *__restrict__ g_idata, T *__restrict__ g_odata,
   //   g_odata[0] = mySum;  // Store final result in the first element
   // }
 
-  // ! Final reduction from all blocks with one complete block, about 10% faster
+  //! Final reduction from all blocks with one complete block, about 10% faster
+  //! Using the same method as before, but now we only use one block
   if (blockIdx.x == 0) {
     // if (threadIdx.x == 0) {
     //   printf("Block 0 starting to do the last reduce pass now.\n");
@@ -556,10 +559,10 @@ __global__ void reduce10(const T *__restrict__ g_idata, T *__restrict__ g_odata,
   }
 }
 
+//! new kernel for 3.3.2
 template <typename T, unsigned int blockSize, bool nIsPow2>
 __global__ void reduce11(const T *__restrict__ g_idata, T *__restrict__ g_odata,
                          unsigned int n) {
-  cg::grid_group grid = cg::this_grid();
   T *sdata = SharedMemory<T>();
 
   // perform first level of reduction,
@@ -584,7 +587,7 @@ __global__ void reduce11(const T *__restrict__ g_idata, T *__restrict__ g_odata,
       // ensure we don't read out of bounds -- this is optimized away for
       // powerOf2 sized arrays
 
-      //! got rid of unneccessary if statement:
+      //! got rid of unnecessary if statement from original code:
       // if ((i + blockSize) < n) {
       // mySum += g_idata[i + blockSize];
       // }
@@ -621,7 +624,7 @@ __global__ void reduce11(const T *__restrict__ g_idata, T *__restrict__ g_odata,
     mySum = warpReduceSum<T>(ballot_result, mySum);
   }
 
-  // Final reduce as atomic operation
+  //! Final reduce as atomic add from thread0 in each block
   if (threadIdx.x == 0) {
     auto re = atomicAdd(&g_odata[0], mySum);
   }
@@ -1000,9 +1003,11 @@ void reduce(int size, int threads, int blocks, int whichKernel, T *d_idata,
       }
 
       break;
-
+    //! removed kernel 7 during development of new kernel
     case 7:
-      printf("Kernel 7 is not supported in this version of the code.\n");
+      printf(
+          "Kernel 7 is not supported in this version of the code.\n You might "
+          "want to try the new kernels 10 and 11.\n");
       exit(7);
       break;
     case 8:
@@ -1041,6 +1046,7 @@ void reduce(int size, int threads, int blocks, int whichKernel, T *d_idata,
               "thread block size of < 64 is not supported for this kernel\n");
           break;
       }
+    //! new kernels for 3.3.1 with cooperative groups
     case 10:
       // For reduce7 kernel we require only blockSize/warpSize
       // number of elements in shared memory
@@ -1087,8 +1093,8 @@ void reduce(int size, int threads, int blocks, int whichKernel, T *d_idata,
           CALL_REDUCE10_KERNEL(1, false);
         }
       }
-
       break;
+    //! new kernels for 3.3.2 with cooperative groups
     case 11:
       smemSize = ((threads / 32) + 1) * sizeof(T);
       kernelArgs[0] = &d_idata;
@@ -1146,5 +1152,3 @@ template void reduce<float>(int size, int threads, int blocks, int whichKernel,
 
 template void reduce<double>(int size, int threads, int blocks, int whichKernel,
                              double *d_idata, double *d_odata);
-
-#endif  // #ifndef _REDUCE_KERNEL_H_
