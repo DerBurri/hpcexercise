@@ -1152,3 +1152,4 @@ template void reduce<float>(int size, int threads, int blocks, int whichKernel,
 
 template void reduce<double>(int size, int threads, int blocks, int whichKernel,
                              double *d_idata, double *d_odata);
+#endif  // #ifndef _REDUCE_KERNEL_H_
