@@ -37,6 +37,146 @@
 
 namespace cg = cooperative_groups;
 
+// GLobal accummulator value
+__device__ float globalAcc = 0;
+
+bool isPow2(unsigned int x) { return ((x & (x - 1)) == 0); }
+
+template <class T>
+struct SharedMemory {
+  __device__ inline operator T *() {
+    extern __shared__ int __smem[];
+    return (T *)__smem;
+  }
+
+  __device__ inline operator const T *() const {
+    extern __shared__ int __smem[];
+    return (T *)__smem;
+  }
+};
+
+template <class T>
+__device__ __forceinline__ T warpReduceSum(unsigned int mask, T mySum) {
+  for (int offset = warpSize / 2; offset > 0; offset /= 2) {
+    mySum += __shfl_down_sync(mask, mySum, offset);
+  }
+  return mySum;
+}
+
+template <typename T, unsigned int blockSize, bool nIsPow2>
+__global__ void reduce7(const T *__restrict__ g_idata, T *__restrict__ g_odata,
+                        unsigned int n) {
+  T *sdata = SharedMemory<T>();
+
+  // perform first level of reduction,
+  // reading from global memory, writing to shared memory
+  unsigned int tid = threadIdx.x;
+  unsigned int gridSize = blockSize * gridDim.x;
+  unsigned int maskLength = (blockSize & 31);  // 31 = warpSize-1
+  maskLength = (maskLength > 0) ? (32 - maskLength) : maskLength;
+  const unsigned int mask = (0xffffffff) >> maskLength;
+
+  T mySum = 0;
+
+  // we reduce multiple elements per thread.  The number is determined by the
+  // number of active thread blocks (via gridDim).  More blocks will result
+  // in a larger gridSize and therefore fewer elements per thread
+  if (nIsPow2) {
+    unsigned int i = blockIdx.x * blockSize * 2 + threadIdx.x;
+    gridSize = gridSize << 1;
+
+    while (i < n) {
+      mySum += g_idata[i];
+      // ensure we don't read out of bounds -- this is optimized away for
+      // powerOf2 sized arrays
+      if ((i + blockSize) < n) {
+        mySum += g_idata[i + blockSize];
+      }
+      i += gridSize;
+    }
+  } else {
+    unsigned int i = blockIdx.x * blockSize + threadIdx.x;
+    while (i < n) {
+      mySum += g_idata[i];
+      i += gridSize;
+    }
+  }
+
+  // Reduce within warp using shuffle or reduce_add if T==int & CUDA_ARCH ==
+  // SM 8.0
+  mySum = warpReduceSum<T>(mask, mySum);
+
+  // each thread puts its local sum into shared memory
+  if ((tid % warpSize) == 0) {
+    sdata[tid / warpSize] = mySum;
+  }
+
+  __syncthreads();
+
+  const unsigned int shmem_extent =
+      (blockSize / warpSize) > 0 ? (blockSize / warpSize) : 1;
+  const unsigned int ballot_result = __ballot_sync(mask, tid < shmem_extent);
+  if (tid < shmem_extent) {
+    mySum = sdata[tid];
+    // Reduce final warp using shuffle or reduce_add if T==int & CUDA_ARCH ==
+    // SM 8.0
+    mySum = warpReduceSum<T>(ballot_result, mySum);
+  }
+
+  // write result for this block to global mem
+  if (tid == 0) {
+    atomicAdd(&globalAcc, mySum);
+    //printf("Block %d, Thread %d, sum: %f, globAcc %f\n", blockIdx.x, threadIdx.x, mySum, globalAcc);
+  }
+}
+
+template <class T>
+void reduceSpeciale(int size, int threads, int blocks, T *d_idata, T *d_odata, int dev_num) {
+
+  dim3 dimBlock(threads, 1, 1);
+  dim3 dimGrid(blocks, 1, 1);
+
+  // For reduce7 kernel we require only blockSize/warpSize
+  // number of elements in shared memory
+  int smemSize = ((threads / 32) + 1) * sizeof(T);
+
+  void* args[3] = {d_idata, d_odata, &size};
+
+#define STANDARD_KERNEL_LAUNCH(threads, isPowOf2) case threads: reduce7<T, threads, isPowOf2><<<dimGrid, dimBlock, smemSize>>>(d_idata, d_odata, size); break;
+
+#define COOP_KERNEL_LAUNCH(threads, isPowOf2) case threads: cudaLaunchCooperativeKernel((void*)reduce7<T, threads, isPowOf2>, dimGrid, dimBlock, args, smemSize, 0); break;
+  
+  if (isPow2(size)) {
+    switch (threads) {
+      STANDARD_KERNEL_LAUNCH(1024,true)
+      STANDARD_KERNEL_LAUNCH(512,true)
+      STANDARD_KERNEL_LAUNCH(256,true)
+      STANDARD_KERNEL_LAUNCH(128,true)
+      STANDARD_KERNEL_LAUNCH(64,true)
+      STANDARD_KERNEL_LAUNCH(32,true)
+      STANDARD_KERNEL_LAUNCH(16,true)
+      STANDARD_KERNEL_LAUNCH(8,true)
+      STANDARD_KERNEL_LAUNCH(4,true)
+      STANDARD_KERNEL_LAUNCH(2,true)
+      STANDARD_KERNEL_LAUNCH(1,true)
+    }
+  } else {
+    switch (threads) {
+      STANDARD_KERNEL_LAUNCH(1024,true)
+      STANDARD_KERNEL_LAUNCH(512,false)
+      STANDARD_KERNEL_LAUNCH(256,false)
+      STANDARD_KERNEL_LAUNCH(128,false)
+      STANDARD_KERNEL_LAUNCH(64,false)
+      STANDARD_KERNEL_LAUNCH(32,false)
+      STANDARD_KERNEL_LAUNCH(16,false)
+      STANDARD_KERNEL_LAUNCH(8,false)
+      STANDARD_KERNEL_LAUNCH(4,false)
+      STANDARD_KERNEL_LAUNCH(2,false)
+      STANDARD_KERNEL_LAUNCH(1,false)
+    }
+  }
+}
+
 /*
     Parallel sum reduction using shared memory
     - takes log(n) steps for n input elements
@@ -202,8 +342,6 @@ __global__ void reduceSinglePass(const float *g_idata, float *g_odata,
     }
   }
 }
-
-bool isPow2(unsigned int x) { return ((x & (x - 1)) == 0); }
 
 ////////////////////////////////////////////////////////////////////////////////
 // Wrapper function for kernel launch

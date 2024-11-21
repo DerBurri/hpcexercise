@@ -32,7 +32,7 @@
 ################################################################################
 
 # Location of the CUDA Toolkit
-CUDA_PATH ?= /usr/local/cuda
+CUDA_PATH = /opt/asc/spack/opt/spack/linux-debian12-x86_64_v2/gcc-13.1.0/cuda-12.6.1-eq5axkonpabssoacghdsg3q4nas5nkja
 
 ##############################
 # start deprecated interface #
