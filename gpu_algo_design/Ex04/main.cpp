@@ -112,12 +112,15 @@ int main(int argc, char **argv) {
       cudaMemcpy(d_Data, h_Data, byteCount, cudaMemcpyHostToDevice));
 
   {
-    printf("Initializing 256-bin histogram...\n");
-    initHistogram256();
+    printf("Initializing %d-bin histogram...\n", binNum);
+    initHistogram256(binNum);
 
-    printf("Running 256-bin GPU histogram for %u bytes (%u runs)...\n\n",
-           byteCount, numRuns);
+    printf("Running %d-bin GPU histogram for %u bytes (%u runs)...\n\n",
+           binNum, byteCount, numRuns);
 
+    // ======================================================================
+    // Measure iteration section
+    // ======================================================================
     for (int iter = -1; iter < numRuns; iter++) {
       // iter == -1 -- warmup iteration
       if (iter == 0) {
@@ -126,8 +129,9 @@ int main(int argc, char **argv) {
         sdkStartTimer(&hTimer);
       }
 
-      histogram256(d_Histogram, d_Data, byteCount);
+      histogram256(d_Histogram, d_Data, byteCount, binNum);
     }
+    // ======================================================================
 
     cudaDeviceSynchronize();
     sdkStopTimer(&hTimer);
@@ -136,9 +140,9 @@ int main(int argc, char **argv) {
     printf("histogram256() time (average) : %.5f sec, %.4f MB/sec\n\n",
            dAvgSecs, ((double)byteCount * 1.0e-6) / dAvgSecs);
     printf(
-        "histogram256, Throughput = %.4f MB/s, Time = %.5f s, Size = %u Bytes, "
+        "histogram%d, Throughput = %.4f MB/s, Time = %.5f s, Size = %u Bytes, "
         "NumDevsUsed = %u, Workgroup = %u\n",
-        (1.0e-6 * (double)byteCount / dAvgSecs), dAvgSecs, byteCount, 1,
+        binNum, (1.0e-6 * (double)byteCount / dAvgSecs), dAvgSecs, byteCount, 1,
         HISTOGRAM256_THREADBLOCK_SIZE);
 
     printf("\nValidating GPU results...\n");

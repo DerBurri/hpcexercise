@@ -65,21 +65,15 @@ typedef unsigned char uchar;
 ////////////////////////////////////////////////////////////////////////////////
 // Reference CPU histogram
 ////////////////////////////////////////////////////////////////////////////////
-extern "C" void histogram64CPU(uint *h_Histogram, void *h_Data, uint byteCount);
-
 extern "C" void histogram256CPU(uint *h_Histogram, void *h_Data,
                                 uint byteCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 // GPU histogram
 ////////////////////////////////////////////////////////////////////////////////
-extern "C" void initHistogram64(void);
-extern "C" void initHistogram256(void);
-extern "C" void closeHistogram64(void);
+extern "C" void initHistogram256(uint binNum);
 extern "C" void closeHistogram256(void);
 
-extern "C" void histogram64(uint *d_Histogram, void *d_Data, uint byteCount);
-
-extern "C" void histogram256(uint *d_Histogram, void *d_Data, uint byteCount);
+extern "C" void histogram256(uint *d_Histogram, void *d_Data, uint byteCount, uint binNum);
 
 #endif

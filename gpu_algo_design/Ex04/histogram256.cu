@@ -52,13 +52,13 @@ inline __device__ void addWord(uint *s_WarpHist, uint data, uint tag) {
 }
 
 __global__ void histogram256Kernel(uint *d_PartialHistograms, uint *d_Data,
-                                   uint dataCount) {
+                                   uint dataCount, uint binNum) {
   // Handle to thread block group
   cg::thread_block cta = cg::this_thread_block();
   // Per-warp subhistogram storage
   __shared__ uint s_Hist[HISTOGRAM256_THREADBLOCK_MEMORY];
   uint *s_WarpHist =
-      s_Hist + (threadIdx.x >> LOG2_WARP_SIZE) * HISTOGRAM256_BIN_COUNT;
+      s_Hist + (threadIdx.x >> LOG2_WARP_SIZE) * binNum;
 
 // Clear shared memory storage for current threadblock before processing
 #pragma unroll
@@ -83,15 +83,15 @@ __global__ void histogram256Kernel(uint *d_PartialHistograms, uint *d_Data,
   // Merge per-warp histograms into per-block and write to global memory
   cg::sync(cta);
 
-  for (uint bin = threadIdx.x; bin < HISTOGRAM256_BIN_COUNT;
+  for (uint bin = threadIdx.x; bin < binNum;
        bin += HISTOGRAM256_THREADBLOCK_SIZE) {
     uint sum = 0;
 
     for (uint i = 0; i < WARP_COUNT; i++) {
-      sum += s_Hist[bin + i * HISTOGRAM256_BIN_COUNT] & TAG_MASK;
+      sum += s_Hist[bin + i * binNum] & TAG_MASK;
     }
 
-    d_PartialHistograms[blockIdx.x * HISTOGRAM256_BIN_COUNT + bin] = sum;
+    d_PartialHistograms[blockIdx.x * binNum + bin] = sum;
   }
 }
 
@@ -105,14 +105,15 @@ __global__ void histogram256Kernel(uint *d_PartialHistograms, uint *d_Data,
 
 __global__ void mergeHistogram256Kernel(uint *d_Histogram,
                                         uint *d_PartialHistograms,
-                                        uint histogramCount) {
+                                        uint histogramCount, 
+                                        uint binNum) {
   // Handle to thread block group
   cg::thread_block cta = cg::this_thread_block();
 
   uint sum = 0;
 
   for (uint i = threadIdx.x; i < histogramCount; i += MERGE_THREADBLOCK_SIZE) {
-    sum += d_PartialHistograms[blockIdx.x + i * HISTOGRAM256_BIN_COUNT];
+    sum += d_PartialHistograms[blockIdx.x + i * binNum];
   }
 
   __shared__ uint data[MERGE_THREADBLOCK_SIZE];
@@ -139,10 +140,10 @@ static const uint PARTIAL_HISTOGRAM256_COUNT = 240;
 static uint *d_PartialHistograms;
 
 // Internal memory allocation
-extern "C" void initHistogram256(void) {
+extern "C" void initHistogram256(uint binNum) {
   checkCudaErrors(cudaMalloc(
       (void **)&d_PartialHistograms,
-      PARTIAL_HISTOGRAM256_COUNT * HISTOGRAM256_BIN_COUNT * sizeof(uint)));
+      PARTIAL_HISTOGRAM256_COUNT * binNum * sizeof(uint)));
 }
 
 // Internal memory deallocation
@@ -150,14 +151,14 @@ extern "C" void closeHistogram256(void) {
   checkCudaErrors(cudaFree(d_PartialHistograms));
 }
 
-extern "C" void histogram256(uint *d_Histogram, void *d_Data, uint byteCount) {
+extern "C" void histogram256(uint *d_Histogram, void *d_Data, uint byteCount, uint binNum) {
   assert(byteCount % sizeof(uint) == 0);
   histogram256Kernel<<<PARTIAL_HISTOGRAM256_COUNT,
                        HISTOGRAM256_THREADBLOCK_SIZE>>>(
-      d_PartialHistograms, (uint *)d_Data, byteCount / sizeof(uint));
+      d_PartialHistograms, (uint *)d_Data, byteCount / sizeof(uint), binNum);
   getLastCudaError("histogram256Kernel() execution failed\n");
 
-  mergeHistogram256Kernel<<<HISTOGRAM256_BIN_COUNT, MERGE_THREADBLOCK_SIZE>>>(
-      d_Histogram, d_PartialHistograms, PARTIAL_HISTOGRAM256_COUNT);
+  mergeHistogram256Kernel<<<binNum, MERGE_THREADBLOCK_SIZE>>>(
+      d_Histogram, d_PartialHistograms, PARTIAL_HISTOGRAM256_COUNT, binNum);
   getLastCudaError("mergeHistogram256Kernel() execution failed\n");
 }
