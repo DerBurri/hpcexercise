@@ -261,8 +261,8 @@ extern "C" uint bitonicSort(uint *d_DstKey, uint *d_DstVal, uint *d_SrcKey,
                                                     d_SrcKey, d_SrcVal);
 
     for (uint size = 2 * SHARED_SIZE_LIMIT; size <= arrayLength; size <<= 1) {
-      bool merged = false;
-      for (unsigned stride = size / 2; stride > 0 && !merged; stride >>= 1) {
+      bool sizeMerged = false;
+      for (unsigned stride = (size / 2); ((stride > 0) && (!sizeMerged)); stride >>= 1) {
         if (stride >= SHARED_SIZE_LIMIT) {
           bitonicMergeGlobal<<<(batchSize * arrayLength) / 512, 256>>>(
               d_DstKey, d_DstVal, d_DstKey, d_DstVal, arrayLength, size, stride,
@@ -270,7 +270,7 @@ extern "C" uint bitonicSort(uint *d_DstKey, uint *d_DstVal, uint *d_SrcKey,
         } else {
           bitonicMergeShared<<<blockCount, threadCount>>>(
               d_DstKey, d_DstVal, d_DstKey, d_DstVal, arrayLength, size, dir);
-          merged = true;  // Set the flag to stop further iterations
+          sizeMerged = true;  // Set the flag to stop further iterations
         }
       }
     }
