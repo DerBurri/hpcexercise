@@ -1,0 +1,6 @@
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> og
+sortingNetworks-bitonic, Throughput = 1922.0143 MElements/s, Time = 0.00055 s, Size = 1048576 elements, NumDevsUsed = 1, Workgroup = 512
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> no break
+sortingNetworks-bitonic, Throughput = 510.6774 MElements/s, Time = 0.00205 s, Size = 1048576 elements, NumDevsUsed = 1, Workgroup = 512
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> neo
+sortingNetworks-bitonic, Throughput = 1923.0470 MElements/s, Time = 0.00055 s, Size = 1048576 elements, NumDevsUsed = 1, Workgroup = 512
