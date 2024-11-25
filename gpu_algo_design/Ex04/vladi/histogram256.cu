@@ -41,6 +41,7 @@ namespace cg = cooperative_groups;
 
 #define TAG_MASK 0xFFFFFFFFU
 inline __device__ void addByte(uint *s_WarpHist, uint data) {
+  // Increments a bin of a value "data" by 1
   atomicAdd(s_WarpHist + data, 1);
 }
 
@@ -55,16 +56,16 @@ __global__ void histogram256Kernel(uint *d_PartialHistograms, uint *d_Data,
                                    uint dataCount, uint binNum, uint warpCount) {
   // Handle to thread block group
   cg::thread_block cta = cg::this_thread_block();
+
   // Per-warp subhistogram storage
   extern __shared__ uint s_Hist[];
-  uint *s_WarpHist =
-      s_Hist + (threadIdx.x >> LOG2_WARP_SIZE) * binNum;
+  uint *s_WarpHist = s_Hist + (threadIdx.x >> LOG2_WARP_SIZE) * binNum;
 
 // Clear shared memory storage for current threadblock before processing
 #pragma unroll
 
   for (uint i = 0;
-       i < ((warpCount * binNum) / (warpCount * WARP_SIZE));
+       i < (binNum / WARP_SIZE);
        i++) {
     s_Hist[threadIdx.x + i * (warpCount * WARP_SIZE)] = 0;
   }

@@ -28,7 +28,7 @@
 #ifndef HISTOGRAM_COMMON_H
 #define HISTOGRAM_COMMON_H
 
-// #define DEBUG
+#define DEBUG
 
 ////////////////////////////////////////////////////////////////////////////////
 // Common definitions
