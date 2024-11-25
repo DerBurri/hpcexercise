@@ -25,20 +25,17 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <cmath>
 #include <assert.h>
 #include "histogram_common.h"
 
-extern "C" void histogram256CPU(uint *h_Histogram, void *h_Data,
-                                uint byteCount, uint binNum) {
+extern "C" void histogram256CPU(uint *h_Histogram, uint *h_Data,
+                                uint elemCount, uint binNum) {
+
   for (uint i = 0; i < binNum; i++) h_Histogram[i] = 0;
 
-  assert(sizeof(uint) == 4 && (byteCount % 4) == 0);
-
-  for (uint i = 0; i < (byteCount / 4); i++) {
-    uint data = ((uint *)h_Data)[i];
-    h_Histogram[(data >> 0) & 0xFFU]++;
-    h_Histogram[(data >> 8) & 0xFFU]++;
-    h_Histogram[(data >> 16) & 0xFFU]++;
-    h_Histogram[(data >> 24) & 0xFFU]++;
+  for (uint i = 0; i < elemCount; i++) {
+    uint binIdx = (h_Data[i] >> (sizeof(uint)*8 - (uint)log2(binNum))) & (binNum -1);
+    h_Histogram[binIdx]++;
   }
 }

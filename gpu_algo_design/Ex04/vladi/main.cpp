@@ -44,13 +44,14 @@ const int numRuns = 50;
 const static char *sSDKsample = "[histogram]\0";
 
 int main(int argc, char **argv) {
-  uchar *h_Data;
+  uint *h_Data;
   uint *h_HistogramCPU, *h_HistogramGPU;
-  uchar *d_Data;
+  uint *d_Data;
   uint *d_Histogram;
   StopWatchInterface *hTimer = NULL;
   int PassFailFlag = 1;
   uint byteCount = 64 * 1048576;
+  uint elementCount;
   uint uiSizeMult = 1;
   uint binNum = 256;
   uint warpCount = 1;
@@ -81,6 +82,8 @@ int main(int argc, char **argv) {
     byteCount *= uiSizeMult;
   }
 
+  elementCount = byteCount / sizeof(uint);
+
   if (checkCmdLineFlag(argc, (const char **)argv, "binNum")) {
     binNum = getCmdLineArgumentInt(argc, (const char **)argv, "binNum");
     binNum = MAX(256, MIN(binNum, 8192));
@@ -93,23 +96,21 @@ int main(int argc, char **argv) {
 
   printf("Initializing data...\n");
   printf("...allocating CPU memory.\n");
-  h_Data = (uchar *)malloc(byteCount);
+  h_Data = (uint *)malloc(byteCount);
   h_HistogramCPU = (uint *)malloc(binNum * sizeof(uint));
   h_HistogramGPU = (uint *)malloc(binNum * sizeof(uint));
 
   printf("...generating input data\n");
   srand(2009);
 
-  for (uint i = 0; i < byteCount; i++) {
-    h_Data[i] = rand() % 256;
+  for (uint i = 0; i < elementCount; i++) {
+    h_Data[i] = rand();
   }
 
   printf("...allocating GPU memory and copying input data\n\n");
   checkCudaErrors(cudaMalloc((void **)&d_Data, byteCount));
-  checkCudaErrors(
-      cudaMalloc((void **)&d_Histogram, binNum * sizeof(uint)));
-  checkCudaErrors(
-      cudaMemcpy(d_Data, h_Data, byteCount, cudaMemcpyHostToDevice));
+  checkCudaErrors(cudaMalloc((void **)&d_Histogram, binNum * sizeof(uint)));
+  checkCudaErrors(cudaMemcpy(d_Data, h_Data, byteCount, cudaMemcpyHostToDevice));
 
   {
     printf("Initializing %d-bin histogram...\n", binNum);
@@ -139,11 +140,6 @@ int main(int argc, char **argv) {
         1.0e-3 * (double)sdkGetTimerValue(&hTimer) / (double)numRuns;
     printf("histogram256() time (average) : %.5f sec, %.4f MB/sec\n\n",
            dAvgSecs, ((double)byteCount * 1.0e-6) / dAvgSecs);
-    printf(
-        "histogram, binNum = %d, Throughput = %.4f MB/s, Time = %.5f s, Size = %u Bytes, "
-        "NumDevsUsed = %u, Workgroup = %u\n",
-        binNum, (1.0e-6 * (double)byteCount / dAvgSecs), dAvgSecs, byteCount, 1,
-        (warpCount * WARP_SIZE));
 
     printf("\nValidating GPU results...\n");
     printf(" ...reading back GPU results\n");
@@ -152,7 +148,7 @@ int main(int argc, char **argv) {
                                cudaMemcpyDeviceToHost));
 
     printf(" ...histogram256CPU()\n");
-    histogram256CPU(h_HistogramCPU, h_Data, byteCount, binNum);
+    histogram256CPU(h_HistogramCPU, h_Data, elementCount, binNum);
 
     printf(" ...comparing the results\n");
 
@@ -164,6 +160,12 @@ int main(int argc, char **argv) {
     printf(PassFailFlag ? " ...%d-bin histograms match\n\n"
                         : " ***%d-bin histograms do not match!!!***\n\n", 
                         binNum);
+
+    printf(
+        "histogram, binNum = %d, Throughput = %.4f MB/s, Time = %.5f s, Size = %u Bytes, "
+        "NumDevsUsed = %u, Workgroup = %u, TestPassed = %u\n",
+        binNum, (1.0e-6 * (double)byteCount / dAvgSecs), dAvgSecs, byteCount, 1,
+        (warpCount * WARP_SIZE), !PassFailFlag);
 
     printf("Shutting down %d-bin histogram...\n\n\n", binNum);
     closeHistogram256();

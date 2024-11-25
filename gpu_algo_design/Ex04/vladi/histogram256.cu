@@ -39,36 +39,26 @@ namespace cg = cooperative_groups;
 // Shortcut shared memory atomic addition functions
 ////////////////////////////////////////////////////////////////////////////////
 
-#define TAG_MASK 0xFFFFFFFFU
-inline __device__ void addByte(uint *s_WarpHist, uint data) {
-  // Increments a bin of a value "data" by 1
-  atomicAdd(s_WarpHist + data, 1);
-}
-
+template <uint binNum, uint binNumLog2>
 inline __device__ void addWord(uint *s_WarpHist, uint data) {
-  addByte(s_WarpHist, (data >> 0) & 0xFFU);
-  addByte(s_WarpHist, (data >> 8) & 0xFFU);
-  addByte(s_WarpHist, (data >> 16) & 0xFFU);
-  addByte(s_WarpHist, (data >> 24) & 0xFFU);
+
+  uint binIdx = (data >> (sizeof(uint)*8 - binNumLog2)) & (binNum -1);
+  atomicAdd(s_WarpHist + binIdx, 1);
 }
 
+template <uint binNum, uint binNumLog2>
 __global__ void histogram256Kernel(uint *d_PartialHistograms, uint *d_Data,
-                                   uint dataCount, uint binNum, uint warpCount) {
+                                   uint dataCount, uint warpCount) {
   // Handle to thread block group
   cg::thread_block cta = cg::this_thread_block();
 
-  // Per-warp subhistogram storage
+  // Per-block subhistogram storage
   extern __shared__ uint s_Hist[];
-  uint *s_WarpHist = s_Hist + (threadIdx.x >> LOG2_WARP_SIZE) * binNum;
 
-// Clear shared memory storage for current threadblock before processing
+  // Clear shared memory storage for current threadblock before processing
 #pragma unroll
-
-  for (uint i = 0;
-       i < (binNum / WARP_SIZE);
-       i++) {
-    s_Hist[threadIdx.x + i * (warpCount * WARP_SIZE)] = 0;
-  }
+  for (uint i = threadIdx.x; i < binNum; i+= warpCount * WARP_SIZE) 
+    s_Hist[i] = 0;
 
   cg::sync(cta);
 
@@ -76,24 +66,20 @@ __global__ void histogram256Kernel(uint *d_PartialHistograms, uint *d_Data,
   // pos starts at a global index of a thread
   for (uint pos = UMAD(blockIdx.x, blockDim.x, threadIdx.x); pos < dataCount;
        // Stride with the count of all launched threads (since there can be less threads
-       // Htan allocated data
+       // than allocated data
        pos += UMUL(blockDim.x, gridDim.x)) {
+
     uint data = d_Data[pos];
-    addWord(s_WarpHist, data);
+    addWord<binNum, binNumLog2>(s_Hist, data);
   }
 
   // Merge per-warp histograms into per-block and write to global memory
   cg::sync(cta);
 
-  for (uint bin = threadIdx.x; bin < binNum;
-       bin += (warpCount * WARP_SIZE)) {
-    uint sum = 0;
-
-    for (uint i = 0; i < warpCount; i++) {
-      sum += s_Hist[bin + i * binNum] & TAG_MASK;
-    }
-
-    d_PartialHistograms[blockIdx.x * binNum + bin] = sum;
+  // Stride through the shared memory to assign the per-block subhistogram into 
+  // global memory.
+  for (uint bin = threadIdx.x; bin < binNum; bin += (warpCount * WARP_SIZE)) {
+    d_PartialHistograms[blockIdx.x * binNum + bin] = s_Hist[bin];
   }
 }
 
@@ -160,10 +146,22 @@ extern "C" void histogram256(uint *d_Histogram, void *d_Data, uint byteCount, ui
       warpCount * WARP_SIZE, warpCount * binNum * sizeof(uint));
 #endif
 
-  histogram256Kernel<<<PARTIAL_HISTOGRAM256_COUNT,
-                       warpCount * WARP_SIZE,
-                       warpCount * binNum * sizeof(uint)>>>(
-      d_PartialHistograms, (uint *)d_Data, byteCount / sizeof(uint), binNum, warpCount);
+#define KERNEL_CALL(binNum, binNumLog2) \
+  case binNum: histogram256Kernel<binNum, binNumLog2><<<PARTIAL_HISTOGRAM256_COUNT, \
+  warpCount * WARP_SIZE, \
+  binNum * sizeof(uint)>>>( \
+  d_PartialHistograms, (uint *)d_Data, byteCount / sizeof(uint), warpCount); \
+  break;
+
+  switch (binNum) {
+    KERNEL_CALL(256,8)
+    KERNEL_CALL(512,9)
+    KERNEL_CALL(1024,10)
+    KERNEL_CALL(2048,11)
+    KERNEL_CALL(4096,12)
+    KERNEL_CALL(8192,13)
+  }
+
   getLastCudaError("histogram256Kernel() execution failed\n");
 
 #ifdef DEBUG
