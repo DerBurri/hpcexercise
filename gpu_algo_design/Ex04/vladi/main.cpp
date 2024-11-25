@@ -129,7 +129,7 @@ int main(int argc, char **argv) {
         sdkStartTimer(&hTimer);
       }
 
-      histogram256(d_Histogram, d_Data, byteCount, binNum);
+      histogram256(d_Histogram, d_Data, byteCount, binNum, warpCount);
     }
     // ======================================================================
 
@@ -140,10 +140,10 @@ int main(int argc, char **argv) {
     printf("histogram256() time (average) : %.5f sec, %.4f MB/sec\n\n",
            dAvgSecs, ((double)byteCount * 1.0e-6) / dAvgSecs);
     printf(
-        "histogram%d, Throughput = %.4f MB/s, Time = %.5f s, Size = %u Bytes, "
+        "histogram, binNum = %d, Throughput = %.4f MB/s, Time = %.5f s, Size = %u Bytes, "
         "NumDevsUsed = %u, Workgroup = %u\n",
         binNum, (1.0e-6 * (double)byteCount / dAvgSecs), dAvgSecs, byteCount, 1,
-        HISTOGRAM256_THREADBLOCK_SIZE);
+        (warpCount * WARP_SIZE));
 
     printf("\nValidating GPU results...\n");
     printf(" ...reading back GPU results\n");
@@ -152,7 +152,7 @@ int main(int argc, char **argv) {
                                cudaMemcpyDeviceToHost));
 
     printf(" ...histogram256CPU()\n");
-    histogram256CPU(h_HistogramCPU, h_Data, byteCount);
+    histogram256CPU(h_HistogramCPU, h_Data, byteCount, binNum);
 
     printf(" ...comparing the results\n");
 
@@ -161,10 +161,11 @@ int main(int argc, char **argv) {
         PassFailFlag = 0;
       }
 
-    printf(PassFailFlag ? " ...256-bin histograms match\n\n"
-                        : " ***256-bin histograms do not match!!!***\n\n");
+    printf(PassFailFlag ? " ...%d-bin histograms match\n\n"
+                        : " ***%d-bin histograms do not match!!!***\n\n", 
+                        binNum);
 
-    printf("Shutting down 256-bin histogram...\n\n\n");
+    printf("Shutting down %d-bin histogram...\n\n\n", binNum);
     closeHistogram256();
   }
 
@@ -175,10 +176,6 @@ int main(int argc, char **argv) {
   free(h_HistogramGPU);
   free(h_HistogramCPU);
   free(h_Data);
-
-  printf(
-      "\nNOTE: The CUDA Samples are not meant for performance measurements. "
-      "Results may vary when GPU Boost is enabled.\n\n");
 
   printf("%s - Test Summary\n", sSDKsample);
 

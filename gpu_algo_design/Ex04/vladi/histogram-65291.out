@@ -1,0 +1,15 @@
+histogram, binNum = 256, Throughput = 175047.5798 MB/s, Time = 0.00038 s, Size = 67108864 Bytes, NumDevsUsed = 1, Workgroup = 32
+histogram, binNum = 512, Throughput = 166678.3357 MB/s, Time = 0.00040 s, Size = 67108864 Bytes, NumDevsUsed = 1, Workgroup = 32
+histogram, binNum = 1024, Throughput = 152239.0228 MB/s, Time = 0.00044 s, Size = 67108864 Bytes, NumDevsUsed = 1, Workgroup = 32
+histogram, binNum = 2048, Throughput = 129335.3190 MB/s, Time = 0.00052 s, Size = 67108864 Bytes, NumDevsUsed = 1, Workgroup = 32
+histogram, binNum = 4096, Throughput = 99310.1921 MB/s, Time = 0.00068 s, Size = 67108864 Bytes, NumDevsUsed = 1, Workgroup = 32
+histogram, binNum = 8192, Throughput = 90033.6958 MB/s, Time = 0.00075 s, Size = 67108864 Bytes, NumDevsUsed = 1, Workgroup = 32
+histogram, binNum = 256, Throughput = 344258.3644 MB/s, Time = 0.00019 s, Size = 67108864 Bytes, NumDevsUsed = 1, Workgroup = 64
+histogram, binNum = 512, Throughput = 326663.1711 MB/s, Time = 0.00021 s, Size = 67108864 Bytes, NumDevsUsed = 1, Workgroup = 64
+histogram, binNum = 1024, Throughput = 296368.1622 MB/s, Time = 0.00023 s, Size = 67108864 Bytes, NumDevsUsed = 1, Workgroup = 64
+histogram, binNum = 2048, Throughput = 249243.6867 MB/s, Time = 0.00027 s, Size = 67108864 Bytes, NumDevsUsed = 1, Workgroup = 64
+histogram, binNum = 4096, Throughput = 188375.7649 MB/s, Time = 0.00036 s, Size = 67108864 Bytes, NumDevsUsed = 1, Workgroup = 64
+histogram, binNum = 256, Throughput = 659546.5664 MB/s, Time = 0.00010 s, Size = 67108864 Bytes, NumDevsUsed = 1, Workgroup = 128
+histogram, binNum = 512, Throughput = 621378.3543 MB/s, Time = 0.00011 s, Size = 67108864 Bytes, NumDevsUsed = 1, Workgroup = 128
+histogram, binNum = 1024, Throughput = 560993.6284 MB/s, Time = 0.00012 s, Size = 67108864 Bytes, NumDevsUsed = 1, Workgroup = 128
+histogram, binNum = 2048, Throughput = 461625.8966 MB/s, Time = 0.00015 s, Size = 67108864 Bytes, NumDevsUsed = 1, Workgroup = 128
