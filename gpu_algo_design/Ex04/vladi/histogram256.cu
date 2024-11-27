@@ -42,6 +42,16 @@ namespace cg = cooperative_groups;
 template <uint binNum, uint binNumLog2>
 inline __device__ void addWord(uint *s_WarpHist, uint data) {
 
+  /*
+     This computation might look overtly complicatied but it basically says 
+     that only the top bits of the input number (parameter data) are used to 
+     index a bin in a histogram. For example, if the datatype of the
+     input array (here uint) is 32 bits wide and we have 1024 bins, these bins
+     can be indexed by a 10 bit number (range 0 - 1023). This means that we 
+     have to split the range of the input number (0 - 2**23) into 1024 equally 
+     long ranges. And this can be done by choosing only the top 10 bits of the
+     inptu number.
+  */
   uint binIdx = (data >> (sizeof(uint)*8 - binNumLog2)) & (binNum -1);
   atomicAdd(s_WarpHist + binIdx, 1);
 }
@@ -52,7 +62,8 @@ __global__ void histogram256Kernel(uint *d_PartialHistograms, uint *d_Data,
   // Handle to thread block group
   cg::thread_block cta = cg::this_thread_block();
 
-  // Per-block subhistogram storage
+  // Per-block (!!!) subhistogram storage which is shared among multiple
+  // warps.
   extern __shared__ uint s_Hist[];
 
   // Clear shared memory storage for current threadblock before processing
@@ -62,18 +73,17 @@ __global__ void histogram256Kernel(uint *d_PartialHistograms, uint *d_Data,
 
   cg::sync(cta);
 
-  // Cycle through the entire data set, update subhistograms for each warp
-  // pos starts at a global index of a thread
+  // Cycle through the entire data set, update subhistograms for each warp.
+  // "pos" variable starts at a global index of a thread and strides with the 
+  // count of all launched threads (since there can be less threads than 
+  // allocated data)
   for (uint pos = UMAD(blockIdx.x, blockDim.x, threadIdx.x); pos < dataCount;
-       // Stride with the count of all launched threads (since there can be less threads
-       // than allocated data
        pos += UMUL(blockDim.x, gridDim.x)) {
 
     uint data = d_Data[pos];
     addWord<binNum, binNumLog2>(s_Hist, data);
   }
 
-  // Merge per-warp histograms into per-block and write to global memory
   cg::sync(cta);
 
   // Stride through the shared memory to assign the per-block subhistogram into 
@@ -84,7 +94,7 @@ __global__ void histogram256Kernel(uint *d_PartialHistograms, uint *d_Data,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Merge histogram256() output
+// Merge histogram256Kernel() output
 // Run one threadblock per bin; each threadblock adds up the same bin counter
 // from every partial histogram. Reads are uncoalesced, but mergeHistogram256
 // takes only a fraction of total processing time

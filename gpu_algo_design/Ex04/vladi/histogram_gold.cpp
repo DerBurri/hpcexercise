@@ -35,6 +35,8 @@ extern "C" void histogram256CPU(uint *h_Histogram, uint *h_Data,
   for (uint i = 0; i < binNum; i++) h_Histogram[i] = 0;
 
   for (uint i = 0; i < elemCount; i++) {
+    // A quite complicated computation of a bin index whose explanation can be
+    // found in the histogram256.cu file.
     uint binIdx = (h_Data[i] >> (sizeof(uint)*8 - (uint)log2(binNum))) & (binNum -1);
     h_Histogram[binIdx]++;
   }

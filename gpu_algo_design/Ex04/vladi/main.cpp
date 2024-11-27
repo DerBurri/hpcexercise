@@ -40,7 +40,7 @@
 // project include
 #include "histogram_common.h"
 
-const int numRuns = 50;
+const int numRuns = 100;
 const static char *sSDKsample = "[histogram]\0";
 
 int main(int argc, char **argv) {
