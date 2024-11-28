@@ -54,81 +54,57 @@
 // then uniformly adding across the input data via the uniform_add<<<>>> kernel.
 
 __global__ void shfl_scan_test(int *data, int width, int *partial_sums = NULL) {
-  extern __shared__ int sums[];
-  int id = ((blockIdx.x * blockDim.x) + threadIdx.x);
-  int lane_id = id % warpSize;
-  // determine a warp_id within a block
-  int warp_id = threadIdx.x / warpSize;
+    extern __shared__ int sums[];
+    int id = ((blockIdx.x * blockDim.x) + threadIdx.x);
+    int lane_id = threadIdx.x % warpSize;
+    int warp_id = threadIdx.x / warpSize;
+    int warpNum = blockDim.x / warpSize;
 
-  // Below is the basic structure of using a shfl instruction
-  // for a scan.
-  // Record "value" as a variable - we accumulate it along the way
+    // Step 1: Load data into shared memory in normal order
+    if (id < width) { 
+        sums[warp_id * warpSize + lane_id] = data[id];
+    } else {
+        sums[warp_id * warpSize + lane_id] = 0; // Handle out-of-bound threads
+    }
+    __syncthreads();
 
-  // Step 1: Load data into shared memory
-  sums[warp_id + lane_id * blockDim.x / warpSize] = (id < width) ? data[id]: 0;
+    // Step 2: Compute partial sums along rows (i index)
+    int *warp_data = &sums[lane_id * warpNum];
+    int value = 0;
 
-  __syncthreads();
+    // Ensure bounded computation
+    for (int i = 0; i < warpNum; i++) {
+        value += warp_data[i];
+    }
 
-  //Step 2: Warp level scan within each colum (aligned to lane_id)
-    int *warp_data = &sums[lane_id * blockDim.x / warpSize];
-    int value = warp_data[warp_id];
+    // Store partial sums for each lane
+    warp_data[warp_id] = value;
+    __syncthreads();
 
-
-  // Now accumulate in log steps up the chain
-  // compute sums, with another thread's value who is
-  // distance delta away (i).  Note
-  // those threads where the thread 'i' away would have
-  // been out of bounds of the warp are unaffected.  This
-  // creates the scan sum.
-
-#pragma unroll
-  for (int i = 1; i <= width; i *= 2) {
-    unsigned int mask = 0xffffffff;
-    int n = __shfl_up_sync(mask, value, i, width);
-    if (lane_id >= i) value += n;
-  }
-
-
-  // value now holds the scan value for the individual thread
-  // next sum the largest values for each warp
-
-  // write the sum of the warp to smem
-   warp_data[warp_id] = value; // Store results back in shared memory
-
-  __syncthreads();
-
-  //Step 3: Inter-warp scan of the last values in each column
-  if (warp_id == blockDim.x/ width -1) { //Last warp in each column
-      sums[lane_id] = value;
-        }
-
-      __syncthreads();
-
-    if (threadIdx.x < width) { // First warp handles inter-warp scan
-        int column_sum = (threadIdx.x < blockDim.x / width) ? sums[threadIdx.x] : 0;
-        for (int i = 1; i <= width; i *= 2) {
-            unsigned int mask = 0xffffffff;
-            int n = __shfl_up_sync(mask, column_sum, i, width);
-            if (lane_id >= i) column_sum += n;
-        }
-        if (threadIdx.x < blockDim.x / width) {
-            sums[threadIdx.x] = column_sum;
+    // Step 3: Scan of the last values in each column using __shfl_up_sync()
+    int column_sum = value;
+    #pragma unroll
+    for (int offset = 1; offset < warpSize; offset *= 2) {
+        int temp = __shfl_up_sync(0xffffffff, column_sum, offset);
+        if (lane_id >= offset) {
+            column_sum += temp;
         }
     }
 
-    __syncthreads();
-
-    // Step 4: Correct partial sums for each warp with inter-warp results
-    int correction = (warp_id > 0) ? sums[warp_id - 1 + lane_id * blockDim.x / width] : 0;
+    // Step 4: Correct partial sums
+// Ensure all threads in the warp participate
+int correction = __shfl_up_sync(0xffffffff, column_sum, 1);
+if (lane_id > 0) {
     value += correction;
+}
 
-    warp_data[warp_id] = value; // Write corrected values back
-
+    // Store corrected values
+    warp_data[warp_id] = value;
     __syncthreads();
 
-    // Step 5: Write the results back to global memory
+    // Step 5: Write results back to global memory
     if (id < width) {
-        data[id] = sums[warp_id + lane_id * blockDim.x / width];
+        data[id] = sums[warp_id * warpSize + lane_id];
     }
 
     // Write the block's final sum to partial_sums if required
