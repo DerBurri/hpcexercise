@@ -53,6 +53,8 @@
 // final sum in global memory and prefix summing that via another kernel call,
 // then uniformly adding across the input data via the uniform_add<<<>>> kernel.
 
+
+//New Function based on Transposing implicitly
 __global__ void shfl_scan_test(int *data, int width, int *partial_sums = NULL) {
     extern __shared__ int sums[];
     int id = ((blockIdx.x * blockDim.x) + threadIdx.x);
@@ -68,48 +70,41 @@ __global__ void shfl_scan_test(int *data, int width, int *partial_sums = NULL) {
     }
     __syncthreads();
 
-    // Step 2: Compute partial sums along rows (i index)
-    int *warp_data = &sums[lane_id * warpNum];
-    int value = 0;
-
+    // Step 2: Compute partial sums along columns (i index)
     // Ensure bounded computation
+    // Calculate colum value, also create the partial sums and store in shared memory
+    int value = 0;
     for (int i = 0; i < warpNum; i++) {
-        value += warp_data[i];
+        value += sums[warp_id * i + lane_id];
     }
+    sums[warp_id] = value;
 
-    // Store partial sums for each lane
-    warp_data[warp_id] = value;
     __syncthreads();
 
-    // Step 3: Scan of the last values in each column using __shfl_up_sync()
-    int column_sum = value;
+    // Step 3: Summize the row using __shfl_up_sync()
+    if (warpNum == 0){
     #pragma unroll
-    for (int offset = 1; offset < warpSize; offset *= 2) {
-        int temp = __shfl_up_sync(0xffffffff, column_sum, offset);
-        if (lane_id >= offset) {
-            column_sum += temp;
-        }
+      for (int i = 1; i<warpNum;i *=2)
+      {
+        value = __shfl_up_sync(0xffffffff,value,1);
+      }
+      
     }
+    __syncthreads();
 
     // Step 4: Correct partial sums
-// Ensure all threads in the warp participate
-int correction = __shfl_up_sync(0xffffffff, column_sum, 1);
-if (lane_id > 0) {
-    value += correction;
-}
+  // Ensure all threads in the warp participate
+  int correction = __shfl_up_sync(0xffffffff, value, 1);
+  if (lane_id > 0) {
+      value += correction;
+  }
 
     // Store corrected values
-    warp_data[warp_id] = value;
-    __syncthreads();
+    //warp_data[warp_id] = value;
 
     // Step 5: Write results back to global memory
     if (id < width) {
-        data[id] = sums[warp_id * warpSize + lane_id];
-    }
-
-    // Write the block's final sum to partial_sums if required
-    if (partial_sums != NULL && threadIdx.x == blockDim.x - 1) {
-        partial_sums[blockIdx.x] = value;
+        data[id] = value;
     }
 }
 
